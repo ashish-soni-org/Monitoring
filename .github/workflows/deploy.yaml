@@ -1,23 +1,16 @@
-name: Deploy Monitoring Stack
+name: Deploy via SSM
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
   workflow_dispatch:
 
-concurrency:
-  group: monitoring-production
-  cancel-in-progress: true
-
 jobs:
-  deploy:
-    name: Deploy via SSM
+  deploy-ssm:
+    name: SSM Deployment
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -25,77 +18,242 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION_NAME }}
 
-      - name: Resolve Instance ID
-        id: get-instance
+      - name: Deploy to EC2
         run: |
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=ip-address,Values=${{ secrets.MONITORING_HOST }}" \
-            --query "Reservations[*].Instances[*].InstanceId" \
-            --output text)
+          echo "🔍 Finding Instance with tag 'monitoring=true'..."
           
-          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
-            echo "Error: Could not find Instance ID for IP ${{ secrets.MONITORING_HOST }}"
+          # 1. Dynamic Discovery (Get Instance ID)
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:monitoring,Values=true" "Name=instance-state-name,Values=running" \
+            --query "Reservations[].Instances[].InstanceId" \
+            --output text)
+
+          if [ -z "$INSTANCE_ID" ]; then
+            echo "❌ Error: No running instance found with tag 'monitoring=true'"
             exit 1
           fi
           
-          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+          echo "✅ Found Target: $INSTANCE_ID"
 
-    #   - name: Deploy and Start Stack (SSM)
-    #     run: |
-    #       # 1. Base64 Encode Config Files
-    #       COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
-    #       NGINX_B64=$(base64 -w 0 nginx.conf)
-    #       PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
-
-    #       # 2. Define Remote Script
-    #       read -r -d '' REMOTE_SCRIPT <<EOF
-    #       set -e
-    #       mkdir -p /home/ubuntu/monitoring
-    #       cd /home/ubuntu/monitoring
-          
-    #       echo "Deploying files..."
-    #       echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
-    #       echo "$NGINX_B64" | base64 -d > nginx.conf
-    #       echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
-          
-    #       echo "Restarting Docker Stack..."
-    #       docker compose pull
-    #       docker compose up -d --remove-orphans
-    #       docker system prune -f
-    #       docker compose ps
-    #       EOF
-
-    #       # 3. Encode & Send
-    #       SCRIPT_B64=$(echo "$REMOTE_SCRIPT" | base64 -w 0)
-          
-    #       COMMAND_ID=$(aws ssm send-command \
-    #         --document-name "AWS-RunShellScript" \
-    #         --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
-    #         --parameters commands="[\"echo \$SCRIPT_B64 | base64 -d | bash\"]" \
-    #         --query "Command.CommandId" \
-    #         --output text)
+          # 2. Define the Deployment Commands
+          # We use a Here-Doc to keep the script clean. 
+          # Note: We use sudo because /opt/monitoring is owned by root.
+          commands='
+            cd /opt/monitoring
+            echo "⬇️ Fetching latest code..."
+            sudo git fetch origin main
+            sudo git reset --hard origin/main
             
-    #       echo "Command ID: $COMMAND_ID"
-
-    #       # 4. Wait for Completion
-    #       while true; do
-    #         STATUS=$(aws ssm list-command-invocations \
-    #           --command-id "$COMMAND_ID" \
-    #           --details \
-    #           --query "CommandInvocations[0].Status" \
-    #           --output text)
+            echo "🐳 Updating Docker images..."
+            sudo docker compose pull
             
-    #         if [ "$STATUS" == "Success" ]; then
-    #           echo "✅ Deployment Successful!"
-    #           break
-    #         elif [ "$STATUS" == "Failed" ]; then
-    #           echo "❌ Deployment Failed. Output:"
-    #           aws ssm list-command-invocations \
-    #             --command-id "$COMMAND_ID" \
-    #             --details \
-    #             --query "CommandInvocations[0].CommandPlugins[0].Output" \
-    #             --output text
-    #           exit 1
-    #         fi
-    #         sleep 5
-    #       done
+            echo "🚀 Restarting Stack..."
+            sudo docker compose up -d --remove-orphans
+            
+            echo "🧹 Cleaning up..."
+            sudo docker image prune -f
+          '
+
+          # 3. Execute SSM Command
+          echo "⚡ Sending Command to SSM..."
+          SH_COMMAND_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=instanceids,Values=$INSTANCE_ID" \
+            --comment "GitHub Actions Deployment" \
+            --parameters commands="$commands" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "⏳ Execution Started. Command ID: $SH_COMMAND_ID"
+
+          # 4. Polling Loop (The Professional Way)
+          # We wait for the command to finish so we can verify success/failure.
+          while true; do
+            STATUS=$(aws ssm list-command-invocations \
+              --command-id "$SH_COMMAND_ID" \
+              --details \
+              --query "CommandInvocations[0].Status" \
+              --output text)
+            
+            echo "Status: $STATUS"
+
+            if [[ "$STATUS" == "Success" ]]; then
+              echo "✅ Deployment Successful!"
+              exit 0
+            elif [[ "$STATUS" == "Failed" || "$STATUS" == "Cancelled" || "$STATUS" == "TimedOut" ]]; then
+              echo "❌ Deployment Failed. Fetching logs..."
+              # Retrieve standard error for debugging
+              aws ssm get-command-invocation \
+                --command-id "$SH_COMMAND_ID" \
+                --instance-id "$INSTANCE_ID" \
+                --query "StandardErrorContent" \
+                --output text
+              exit 1
+            fi
+            
+            sleep 5
+          done
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# name: Deploy Monitoring Stack
+
+# on:
+#   push:
+#     branches: ["main"]
+#   workflow_dispatch:
+
+# concurrency:
+#   group: monitoring-production
+#   cancel-in-progress: true
+
+# jobs:
+#   deploy:
+#     name: Deploy via SSM
+#     runs-on: ubuntu-latest
+    
+#     steps:
+#       - name: Checkout Repository
+#         uses: actions/checkout@v4
+
+#       - name: Configure AWS Credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ secrets.AWS_REGION_NAME }}
+
+#       - name: Resolve Instance ID
+#         id: get-instance
+#         run: |
+#           INSTANCE_ID=$(aws ec2 describe-instances \
+#             --filters "Name=ip-address,Values=${{ secrets.MONITORING_HOST }}" \
+#             --query "Reservations[*].Instances[*].InstanceId" \
+#             --output text)
+          
+#           if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
+#             echo "Error: Could not find Instance ID for IP ${{ secrets.MONITORING_HOST }}"
+#             exit 1
+#           fi
+          
+#           echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+#     #   - name: Deploy and Start Stack (SSM)
+#     #     run: |
+#     #       # 1. Base64 Encode Config Files
+#     #       COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
+#     #       NGINX_B64=$(base64 -w 0 nginx.conf)
+#     #       PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
+
+#     #       # 2. Define Remote Script
+#     #       read -r -d '' REMOTE_SCRIPT <<EOF
+#     #       set -e
+#     #       mkdir -p /home/ubuntu/monitoring
+#     #       cd /home/ubuntu/monitoring
+          
+#     #       echo "Deploying files..."
+#     #       echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
+#     #       echo "$NGINX_B64" | base64 -d > nginx.conf
+#     #       echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
+          
+#     #       echo "Restarting Docker Stack..."
+#     #       docker compose pull
+#     #       docker compose up -d --remove-orphans
+#     #       docker system prune -f
+#     #       docker compose ps
+#     #       EOF
+
+#     #       # 3. Encode & Send
+#     #       SCRIPT_B64=$(echo "$REMOTE_SCRIPT" | base64 -w 0)
+          
+#     #       COMMAND_ID=$(aws ssm send-command \
+#     #         --document-name "AWS-RunShellScript" \
+#     #         --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
+#     #         --parameters commands="[\"echo \$SCRIPT_B64 | base64 -d | bash\"]" \
+#     #         --query "Command.CommandId" \
+#     #         --output text)
+            
+#     #       echo "Command ID: $COMMAND_ID"
+
+#     #       # 4. Wait for Completion
+#     #       while true; do
+#     #         STATUS=$(aws ssm list-command-invocations \
+#     #           --command-id "$COMMAND_ID" \
+#     #           --details \
+#     #           --query "CommandInvocations[0].Status" \
+#     #           --output text)
+            
+#     #         if [ "$STATUS" == "Success" ]; then
+#     #           echo "✅ Deployment Successful!"
+#     #           break
+#     #         elif [ "$STATUS" == "Failed" ]; then
+#     #           echo "❌ Deployment Failed. Output:"
+#     #           aws ssm list-command-invocations \
+#     #             --command-id "$COMMAND_ID" \
+#     #             --details \
+#     #             --query "CommandInvocations[0].CommandPlugins[0].Output" \
+#     #             --output text
+#     #           exit 1
+#     #         fi
+#     #         sleep 5
+#     #       done
