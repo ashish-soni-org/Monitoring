@@ -45,9 +45,9 @@ jobs:
       - name: Deploy and Start Stack (SSM)
         run: |
           # 1. Prepare Files (Base64 Encode to prevent shell escaping issues)
-          COMPOSE_B64=$(base64 -w 0 docker-compose.yml)
+          COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
           NGINX_B64=$(base64 -w 0 nginx.conf)
-          PROMETHEUS_B64=$(base64 -w 0 prometheus.yml)
+          PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
 
           # 2. Construct the Remote Script
           # This script runs ON the EC2 instance.
@@ -61,9 +61,9 @@ jobs:
           docker --version
 
           # Write Config Files
-          echo "$COMPOSE_B64" | base64 -d > docker-compose.yml
+          echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
           echo "$NGINX_B64" | base64 -d > nginx.conf
-          echo "$PROMETHEUS_B64" | base64 -d > prometheus.yml
+          echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
 
           # Restart Stack
           docker compose pull
