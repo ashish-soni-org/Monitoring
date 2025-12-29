@@ -24,7 +24,7 @@ jobs:
           
           # 1. Dynamic Discovery (Get Instance ID)
           INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:monitoring,Values=true" "Name=instance-state-name,Values=running" \
+            --filters "Name=tag:Monitoring,Values=true" "Name=instance-state-name,Values=running" \
             --query "Reservations[].Instances[].InstanceId" \
             --output text)
 
