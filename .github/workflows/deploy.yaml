@@ -25,44 +25,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION_NAME }}
 
-      # -----------------------------------------------------------------------
-      # DIAGNOSTIC: FILE AUDIT
-      # This step will fail explicitly if a file is missing, telling you which one.
-      # -----------------------------------------------------------------------
-      - name: Audit Repository Files
-        run: |
-          echo "📂 Listing repository content:"
-          ls -la
-          
-          echo "🔍 Checking for required configuration files..."
-          MISSING=0
-          
-          if [ ! -f "docker-compose.yaml" ]; then 
-            echo "❌ CRITICAL ERROR: 'docker-compose.yaml' is MISSING."
-            MISSING=1
-          else
-            echo "✅ Found 'docker-compose.yaml'"
-          fi
-
-          if [ ! -f "nginx.conf" ]; then 
-            echo "❌ CRITICAL ERROR: 'nginx.conf' is MISSING."
-            MISSING=1
-          else
-            echo "✅ Found 'nginx.conf'"
-          fi
-
-          if [ ! -f "prometheus.yaml" ]; then 
-            echo "❌ CRITICAL ERROR: 'prometheus.yaml' is MISSING."
-            MISSING=1
-          else
-            echo "✅ Found 'prometheus.yaml'"
-          fi
-
-          if [ $MISSING -eq 1 ]; then
-            echo "🔴 STOPPING DEPLOYMENT: Please create/push the missing files listed above."
-            exit 1
-          fi
-
       - name: Resolve Instance ID
         id: get-instance
         run: |
@@ -78,62 +40,62 @@ jobs:
           
           echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
 
-      - name: Deploy and Start Stack (SSM)
-        run: |
-          # 1. Base64 Encode Config Files
-          COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
-          NGINX_B64=$(base64 -w 0 nginx.conf)
-          PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
+    #   - name: Deploy and Start Stack (SSM)
+    #     run: |
+    #       # 1. Base64 Encode Config Files
+    #       COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
+    #       NGINX_B64=$(base64 -w 0 nginx.conf)
+    #       PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
 
-          # 2. Define Remote Script
-          read -r -d '' REMOTE_SCRIPT <<EOF
-          set -e
-          mkdir -p /home/ubuntu/monitoring
-          cd /home/ubuntu/monitoring
+    #       # 2. Define Remote Script
+    #       read -r -d '' REMOTE_SCRIPT <<EOF
+    #       set -e
+    #       mkdir -p /home/ubuntu/monitoring
+    #       cd /home/ubuntu/monitoring
           
-          echo "Deploying files..."
-          echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
-          echo "$NGINX_B64" | base64 -d > nginx.conf
-          echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
+    #       echo "Deploying files..."
+    #       echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
+    #       echo "$NGINX_B64" | base64 -d > nginx.conf
+    #       echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
           
-          echo "Restarting Docker Stack..."
-          docker compose pull
-          docker compose up -d --remove-orphans
-          docker system prune -f
-          docker compose ps
-          EOF
+    #       echo "Restarting Docker Stack..."
+    #       docker compose pull
+    #       docker compose up -d --remove-orphans
+    #       docker system prune -f
+    #       docker compose ps
+    #       EOF
 
-          # 3. Encode & Send
-          SCRIPT_B64=$(echo "$REMOTE_SCRIPT" | base64 -w 0)
+    #       # 3. Encode & Send
+    #       SCRIPT_B64=$(echo "$REMOTE_SCRIPT" | base64 -w 0)
           
-          COMMAND_ID=$(aws ssm send-command \
-            --document-name "AWS-RunShellScript" \
-            --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
-            --parameters commands="[\"echo \$SCRIPT_B64 | base64 -d | bash\"]" \
-            --query "Command.CommandId" \
-            --output text)
+    #       COMMAND_ID=$(aws ssm send-command \
+    #         --document-name "AWS-RunShellScript" \
+    #         --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
+    #         --parameters commands="[\"echo \$SCRIPT_B64 | base64 -d | bash\"]" \
+    #         --query "Command.CommandId" \
+    #         --output text)
             
-          echo "Command ID: $COMMAND_ID"
+    #       echo "Command ID: $COMMAND_ID"
 
-          # 4. Wait for Completion
-          while true; do
-            STATUS=$(aws ssm list-command-invocations \
-              --command-id "$COMMAND_ID" \
-              --details \
-              --query "CommandInvocations[0].Status" \
-              --output text)
+    #       # 4. Wait for Completion
+    #       while true; do
+    #         STATUS=$(aws ssm list-command-invocations \
+    #           --command-id "$COMMAND_ID" \
+    #           --details \
+    #           --query "CommandInvocations[0].Status" \
+    #           --output text)
             
-            if [ "$STATUS" == "Success" ]; then
-              echo "✅ Deployment Successful!"
-              break
-            elif [ "$STATUS" == "Failed" ]; then
-              echo "❌ Deployment Failed. Output:"
-              aws ssm list-command-invocations \
-                --command-id "$COMMAND_ID" \
-                --details \
-                --query "CommandInvocations[0].CommandPlugins[0].Output" \
-                --output text
-              exit 1
-            fi
-            sleep 5
-          done
+    #         if [ "$STATUS" == "Success" ]; then
+    #           echo "✅ Deployment Successful!"
+    #           break
+    #         elif [ "$STATUS" == "Failed" ]; then
+    #           echo "❌ Deployment Failed. Output:"
+    #           aws ssm list-command-invocations \
+    #             --command-id "$COMMAND_ID" \
+    #             --details \
+    #             --query "CommandInvocations[0].CommandPlugins[0].Output" \
+    #             --output text
+    #           exit 1
+    #         fi
+    #         sleep 5
+    #       done
