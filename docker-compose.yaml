@@ -28,7 +28,6 @@ jobs:
       - name: Resolve Instance ID
         id: get-instance
         run: |
-          # Retrieve Instance ID using the Public IP from secrets
           INSTANCE_ID=$(aws ec2 describe-instances \
             --filters "Name=ip-address,Values=${{ secrets.MONITORING_HOST }}" \
             --query "Reservations[*].Instances[*].InstanceId" \
@@ -39,56 +38,57 @@ jobs:
             exit 1
           fi
           
-          echo "Target Instance ID: $INSTANCE_ID"
           echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      # -----------------------------------------------------------------------
+      # DIAGNOSTIC STEP: LIST FILES
+      # This will print the exact file structure to your Action logs.
+      # -----------------------------------------------------------------------
+      - name: Debug - List Files
+        run: |
+          echo "Current Directory Content:"
+          ls -la
+          echo "--------------------------------"
+          echo "Checking for specific files:"
+          [ -f docker-compose.yaml ] && echo "✅ docker-compose.yaml found" || echo "❌ docker-compose.yaml MISSING"
+          [ -f nginx.conf ] && echo "✅ nginx.conf found" || echo "❌ nginx.conf MISSING"
+          [ -f prometheus.yaml ] && echo "✅ prometheus.yaml found" || echo "❌ prometheus.yaml MISSING"
 
       - name: Deploy and Start Stack (SSM)
         run: |
           # 1. Base64 Encode Config Files
-          # UPDATED: Using .yaml extension as requested
+          # Fails immediately if files are missing, preventing partial deployments.
+          
+          if [[ ! -f "docker-compose.yaml" ]]; then echo "Error: docker-compose.yaml not found!"; exit 1; fi
+          if [[ ! -f "nginx.conf" ]]; then echo "Error: nginx.conf not found!"; exit 1; fi
+          if [[ ! -f "prometheus.yaml" ]]; then echo "Error: prometheus.yaml not found!"; exit 1; fi
+
           COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
           NGINX_B64=$(base64 -w 0 nginx.conf)
           PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
 
-          # 2. Define the Remote Execution Logic
-          # This script will run ON the EC2 instance.
+          # 2. Define Remote Logic
           read -r -d '' REMOTE_EXECUTION_LOGIC <<EOF
-          set -e # Stop execution if any command fails
-          
-          # Navigate/Create Directory
+          set -e
           cd /home/ubuntu
           mkdir -p monitoring
           cd monitoring
           
-          echo "Starting Deployment..."
-          docker --version
-
-          # Decode and Write Config Files (Preserving .yaml)
+          echo "Writing Config Files..."
           echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
           echo "$NGINX_B64" | base64 -d > nginx.conf
           echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
 
-          # Restart Stack (Zero Downtime)
-          echo "Pulling latest images..."
+          echo "Restarting Stack..."
           docker compose pull
-          
-          echo "Restarting services..."
-          # Docker Compose will automatically find docker-compose.yaml
           docker compose up -d --remove-orphans
-          
-          echo "Cleaning up..."
           docker system prune -f
-          
-          echo "Deployment Complete. Current Status:"
           docker compose ps
           EOF
 
-          # 3. Encode the ENTIRE script
-          # This prevents JSON escaping errors and newline corruption in AWS CLI
+          # 3. Execute
           SCRIPT_B64=$(echo "$REMOTE_EXECUTION_LOGIC" | base64 -w 0)
-
-          # 4. Send Command via SSM
-          # We simply tell the server: "Take this blob, decode it, and run it as bash"
+          
           COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
@@ -96,9 +96,7 @@ jobs:
             --query "Command.CommandId" \
             --output text)
 
-          echo "Command sent: $COMMAND_ID"
-
-          # 5. Wait for Completion
+          # 4. Wait
           while true; do
             STATUS=$(aws ssm list-command-invocations \
               --command-id "$COMMAND_ID" \
@@ -106,13 +104,11 @@ jobs:
               --query "CommandInvocations[0].Status" \
               --output text)
             
-            echo "Deployment Status: $STATUS"
-            
             if [ "$STATUS" == "Success" ]; then
               echo "✅ Deployment Successful!"
               break
-            elif [ "$STATUS" == "Failed" ] || [ "$STATUS" == "Cancelled" ]; then
-              echo "❌ Deployment Failed. Fetching error logs..."
+            elif [ "$STATUS" == "Failed" ]; then
+              echo "❌ Deployment Failed. Output:"
               aws ssm list-command-invocations \
                 --command-id "$COMMAND_ID" \
                 --details \
