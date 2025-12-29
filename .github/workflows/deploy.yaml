@@ -16,51 +16,49 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          # Preserved your specific secret name for region
           aws-region: ${{ secrets.AWS_REGION_NAME }}
 
       - name: Deploy to EC2
         run: |
-          echo "🔍 Finding Instance with tag 'monitoring=true'..."
+          echo "🔍 Finding Instance with tag 'Monitoring=true'..."
           
           # 1. Dynamic Discovery (Get Instance ID)
+          # Note: Tags are case-sensitive. Ensure your EC2 tag key is exactly "Monitoring"
           INSTANCE_ID=$(aws ec2 describe-instances \
             --filters "Name=tag:Monitoring,Values=true" "Name=instance-state-name,Values=running" \
             --query "Reservations[].Instances[].InstanceId" \
             --output text)
 
           if [ -z "$INSTANCE_ID" ]; then
-            echo "❌ Error: No running instance found with tag 'monitoring=true'"
+            echo "❌ Error: No running instance found with tag 'Monitoring=true'"
             exit 1
           fi
           
           echo "✅ Found Target: $INSTANCE_ID"
 
-          # 2. Define the Deployment Commands
-          # We use a Here-Doc to keep the script clean. 
-          # Note: We use sudo because /opt/monitoring is owned by root.
-          commands='
-            cd /opt/monitoring
-            echo "⬇️ Fetching latest code..."
-            sudo git fetch origin main
-            sudo git reset --hard origin/main
-            
-            echo "🐳 Updating Docker images..."
-            sudo docker compose pull
-            
-            echo "🚀 Restarting Stack..."
-            sudo docker compose up -d --remove-orphans
-            
-            echo "🧹 Cleaning up..."
-            sudo docker image prune -f
-          '
+          # 2. Define Commands safely using jq
+          # This creates a strictly formatted JSON file to avoid quoting errors in the shell.
+          jq -n --arg cmd1 "cd /opt/monitoring" \
+                --arg cmd2 "echo '⬇️ Fetching latest code...'" \
+                --arg cmd3 "sudo git fetch origin main" \
+                --arg cmd4 "sudo git reset --hard origin/main" \
+                --arg cmd5 "echo '🐳 Updating Docker images...'" \
+                --arg cmd6 "sudo docker compose pull" \
+                --arg cmd7 "echo '🚀 Restarting Stack...'" \
+                --arg cmd8 "sudo docker compose up -d --remove-orphans" \
+                --arg cmd9 "echo '🧹 Cleaning up...'" \
+                --arg cmd10 "sudo docker image prune -f" \
+                '{"commands": [$cmd1, $cmd2, $cmd3, $cmd4, $cmd5, $cmd6, $cmd7, $cmd8, $cmd9, $cmd10]}' > ssm_payload.json
 
           # 3. Execute SSM Command
+          # We pass the JSON file directly using file:// which bypasses shell interpretation
           echo "⚡ Sending Command to SSM..."
           SH_COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --targets "Key=instanceids,Values=$INSTANCE_ID" \
             --comment "GitHub Actions Deployment" \
-            --parameters commands="$commands" \
+            --parameters file://ssm_payload.json \
             --query "Command.CommandId" \
             --output text)
 
@@ -93,167 +91,3 @@ jobs:
             
             sleep 5
           done
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# name: Deploy Monitoring Stack
-
-# on:
-#   push:
-#     branches: ["main"]
-#   workflow_dispatch:
-
-# concurrency:
-#   group: monitoring-production
-#   cancel-in-progress: true
-
-# jobs:
-#   deploy:
-#     name: Deploy via SSM
-#     runs-on: ubuntu-latest
-    
-#     steps:
-#       - name: Checkout Repository
-#         uses: actions/checkout@v4
-
-#       - name: Configure AWS Credentials
-#         uses: aws-actions/configure-aws-credentials@v4
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ${{ secrets.AWS_REGION_NAME }}
-
-#       - name: Resolve Instance ID
-#         id: get-instance
-#         run: |
-#           INSTANCE_ID=$(aws ec2 describe-instances \
-#             --filters "Name=ip-address,Values=${{ secrets.MONITORING_HOST }}" \
-#             --query "Reservations[*].Instances[*].InstanceId" \
-#             --output text)
-          
-#           if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
-#             echo "Error: Could not find Instance ID for IP ${{ secrets.MONITORING_HOST }}"
-#             exit 1
-#           fi
-          
-#           echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
-
-#     #   - name: Deploy and Start Stack (SSM)
-#     #     run: |
-#     #       # 1. Base64 Encode Config Files
-#     #       COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
-#     #       NGINX_B64=$(base64 -w 0 nginx.conf)
-#     #       PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
-
-#     #       # 2. Define Remote Script
-#     #       read -r -d '' REMOTE_SCRIPT <<EOF
-#     #       set -e
-#     #       mkdir -p /home/ubuntu/monitoring
-#     #       cd /home/ubuntu/monitoring
-          
-#     #       echo "Deploying files..."
-#     #       echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
-#     #       echo "$NGINX_B64" | base64 -d > nginx.conf
-#     #       echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
-          
-#     #       echo "Restarting Docker Stack..."
-#     #       docker compose pull
-#     #       docker compose up -d --remove-orphans
-#     #       docker system prune -f
-#     #       docker compose ps
-#     #       EOF
-
-#     #       # 3. Encode & Send
-#     #       SCRIPT_B64=$(echo "$REMOTE_SCRIPT" | base64 -w 0)
-          
-#     #       COMMAND_ID=$(aws ssm send-command \
-#     #         --document-name "AWS-RunShellScript" \
-#     #         --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
-#     #         --parameters commands="[\"echo \$SCRIPT_B64 | base64 -d | bash\"]" \
-#     #         --query "Command.CommandId" \
-#     #         --output text)
-            
-#     #       echo "Command ID: $COMMAND_ID"
-
-#     #       # 4. Wait for Completion
-#     #       while true; do
-#     #         STATUS=$(aws ssm list-command-invocations \
-#     #           --command-id "$COMMAND_ID" \
-#     #           --details \
-#     #           --query "CommandInvocations[0].Status" \
-#     #           --output text)
-            
-#     #         if [ "$STATUS" == "Success" ]; then
-#     #           echo "✅ Deployment Successful!"
-#     #           break
-#     #         elif [ "$STATUS" == "Failed" ]; then
-#     #           echo "❌ Deployment Failed. Output:"
-#     #           aws ssm list-command-invocations \
-#     #             --command-id "$COMMAND_ID" \
-#     #             --details \
-#     #             --query "CommandInvocations[0].CommandPlugins[0].Output" \
-#     #             --output text
-#     #           exit 1
-#     #         fi
-#     #         sleep 5
-#     #       done
