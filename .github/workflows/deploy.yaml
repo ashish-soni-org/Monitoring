@@ -28,65 +28,92 @@ jobs:
       - name: Resolve Instance ID
         id: get-instance
         run: |
-          # We use the Public IP to find the specific Instance ID for SSM
+          # 1. Get Instance ID from IP
           INSTANCE_ID=$(aws ec2 describe-instances \
             --filters "Name=ip-address,Values=${{ secrets.MONITORING_HOST }}" \
             --query "Reservations[*].Instances[*].InstanceId" \
             --output text)
           
-          if [ -z "$INSTANCE_ID" ]; then
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
             echo "Error: Could not find Instance ID for IP ${{ secrets.MONITORING_HOST }}"
             exit 1
           fi
           
-          echo "Target Instance ID: $INSTANCE_ID"
+          echo "Found Instance: $INSTANCE_ID"
           echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Verify Files Exist
+        run: |
+          echo "Checking for required files..."
+          if [[ ! -f "docker-compose.yaml" ]]; then echo "❌ Error: docker-compose.yaml missing!"; exit 1; fi
+          if [[ ! -f "nginx.conf" ]]; then echo "❌ Error: nginx.conf missing!"; exit 1; fi
+          if [[ ! -f "prometheus.yaml" ]]; then echo "❌ Error: prometheus.yaml missing!"; exit 1; fi
+          echo "✅ All files found."
 
       - name: Deploy and Start Stack (SSM)
         run: |
-          # 1. Prepare Files (Base64 Encode to prevent shell escaping issues)
+          # ------------------------------------------------------------------
+          # STEP 1: ENCODE CONFIG FILES
+          # We base64 encode the files so we can move them safely.
+          # ------------------------------------------------------------------
           COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
           NGINX_B64=$(base64 -w 0 nginx.conf)
           PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
 
-          # 2. Construct the Remote Script
-          # This script runs ON the EC2 instance.
-          # We use a safe 'write_file' function to decode the content.
+          # ------------------------------------------------------------------
+          # STEP 2: CREATE THE REMOTE SCRIPT
+          # This is the bash script that runs ON THE SERVER.
+          # ------------------------------------------------------------------
           read -r -d '' REMOTE_SCRIPT <<EOF
-          cd /home/ubuntu
-          mkdir -p monitoring
-          cd monitoring
+          set -e
           
-          echo "Deploying with Docker Version:"
-          docker --version
+          # Navigate to folder
+          mkdir -p /home/ubuntu/monitoring
+          cd /home/ubuntu/monitoring
+          
+          echo "Started Deployment on Host..."
 
-          # Write Config Files
+          # Decode files back to original
           echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
           echo "$NGINX_B64" | base64 -d > nginx.conf
           echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
 
-          # Restart Stack
+          # Docker Operations
+          echo "Pulling latest images..."
           docker compose pull
+          
+          echo "Restarting services..."
           docker compose up -d --remove-orphans
+          
+          echo "Pruning unused images..."
           docker system prune -f
           
-          echo "Deployment Complete. Running containers:"
+          echo "Deployment Finished. Status:"
           docker compose ps
           EOF
 
-          # 3. Send Command via SSM
-          # We wrap the script in a JSON array for the AWS CLI
+          # ------------------------------------------------------------------
+          # STEP 3: ENCODE THE SCRIPT ITSELF (The Fix)
+          # We encode the entire script above. This prevents JSON syntax errors.
+          # ------------------------------------------------------------------
+          SCRIPT_B64=$(echo "$REMOTE_SCRIPT" | base64 -w 0)
+
+          # ------------------------------------------------------------------
+          # STEP 4: SEND TO SSM
+          # We tell SSM to just "decode and run".
+          # ------------------------------------------------------------------
           COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
-            --parameters commands="[\"$(echo $REMOTE_SCRIPT | sed 's/"/\\"/g')\"]" \
+            --parameters commands="[\"echo \$SCRIPT_B64 | base64 -d | bash\"]" \
             --query "Command.CommandId" \
             --output text)
+            
+          echo "Command ID: $COMMAND_ID"
 
-          echo "Command sent: $COMMAND_ID"
-
-          # 4. Wait for Completion
-          # Poll the status until it finishes
+          # ------------------------------------------------------------------
+          # STEP 5: WAIT FOR COMPLETION
+          # ------------------------------------------------------------------
           while true; do
             STATUS=$(aws ssm list-command-invocations \
               --command-id "$COMMAND_ID" \
@@ -97,10 +124,10 @@ jobs:
             echo "Status: $STATUS"
             
             if [ "$STATUS" == "Success" ]; then
-              echo "Deployment Successful!"
+              echo "✅ Deployment Successful!"
               break
-            elif [ "$STATUS" == "Failed" ]; then
-              echo "Deployment Failed. Fetching output..."
+            elif [ "$STATUS" == "Failed" ] || [ "$STATUS" == "Cancelled" ]; then
+              echo "❌ Deployment Failed. Fetching output..."
               aws ssm list-command-invocations \
                 --command-id "$COMMAND_ID" \
                 --details \
