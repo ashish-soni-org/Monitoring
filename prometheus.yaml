@@ -1,11 +1,11 @@
 global:
-  scrape_interval: 15s     # Scrape targets every 15 seconds
-  evaluation_interval: 15s # Evaluate rules every 15 seconds
+  scrape_interval: 15s     # How often to scrape targets
+  evaluation_interval: 15s # How often to evaluate rules
   scrape_timeout: 10s
 
 scrape_configs:
   # ---------------------------------------------------------------------------
-  # JOB 1: MONITORING STACK (Self-Monitoring)
+  # JOB 1: INTERNAL MONITORING (The Stack Itself)
   # ---------------------------------------------------------------------------
   - job_name: 'prometheus'
     static_configs:
@@ -16,9 +16,6 @@ scrape_configs:
       - targets: ['node-exporter:9100']
 
   # ---------------------------------------------------------------------------
-  # JOB 2: EXTERNAL INFRASTRUCTURE (Your other repos)
-  # You will add targets here as you deploy them
+  # JOB 2: EXTERNAL INFRASTRUCTURE (Your App Servers)
+  # We will add your Repo 1 instances here in the next step.
   # ---------------------------------------------------------------------------
-  # - job_name: 'app-servers'
-  #   static_configs:
-  #     - targets: ['10.0.1.5:9100', '10.0.1.6:9100']

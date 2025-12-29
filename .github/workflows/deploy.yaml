@@ -25,10 +25,47 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION_NAME }}
 
+      # -----------------------------------------------------------------------
+      # DIAGNOSTIC: FILE AUDIT
+      # This step will fail explicitly if a file is missing, telling you which one.
+      # -----------------------------------------------------------------------
+      - name: Audit Repository Files
+        run: |
+          echo "📂 Listing repository content:"
+          ls -la
+          
+          echo "🔍 Checking for required configuration files..."
+          MISSING=0
+          
+          if [ ! -f "docker-compose.yaml" ]; then 
+            echo "❌ CRITICAL ERROR: 'docker-compose.yaml' is MISSING."
+            MISSING=1
+          else
+            echo "✅ Found 'docker-compose.yaml'"
+          fi
+
+          if [ ! -f "nginx.conf" ]; then 
+            echo "❌ CRITICAL ERROR: 'nginx.conf' is MISSING."
+            MISSING=1
+          else
+            echo "✅ Found 'nginx.conf'"
+          fi
+
+          if [ ! -f "prometheus.yaml" ]; then 
+            echo "❌ CRITICAL ERROR: 'prometheus.yaml' is MISSING."
+            MISSING=1
+          else
+            echo "✅ Found 'prometheus.yaml'"
+          fi
+
+          if [ $MISSING -eq 1 ]; then
+            echo "🔴 STOPPING DEPLOYMENT: Please create/push the missing files listed above."
+            exit 1
+          fi
+
       - name: Resolve Instance ID
         id: get-instance
         run: |
-          # 1. Get Instance ID from IP
           INSTANCE_ID=$(aws ec2 describe-instances \
             --filters "Name=ip-address,Values=${{ secrets.MONITORING_HOST }}" \
             --query "Reservations[*].Instances[*].InstanceId" \
@@ -39,69 +76,36 @@ jobs:
             exit 1
           fi
           
-          echo "Found Instance: $INSTANCE_ID"
           echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
-
-      - name: Verify Files Exist
-        run: |
-          echo "Checking for required files..."
-          if [[ ! -f "docker-compose.yaml" ]]; then echo "❌ Error: docker-compose.yaml missing!"; exit 1; fi
-          if [[ ! -f "nginx.conf" ]]; then echo "❌ Error: nginx.conf missing!"; exit 1; fi
-          if [[ ! -f "prometheus.yaml" ]]; then echo "❌ Error: prometheus.yaml missing!"; exit 1; fi
-          echo "✅ All files found."
 
       - name: Deploy and Start Stack (SSM)
         run: |
-          # ------------------------------------------------------------------
-          # STEP 1: ENCODE CONFIG FILES
-          # We base64 encode the files so we can move them safely.
-          # ------------------------------------------------------------------
+          # 1. Base64 Encode Config Files
           COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
           NGINX_B64=$(base64 -w 0 nginx.conf)
           PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
 
-          # ------------------------------------------------------------------
-          # STEP 2: CREATE THE REMOTE SCRIPT
-          # This is the bash script that runs ON THE SERVER.
-          # ------------------------------------------------------------------
+          # 2. Define Remote Script
           read -r -d '' REMOTE_SCRIPT <<EOF
           set -e
-          
-          # Navigate to folder
           mkdir -p /home/ubuntu/monitoring
           cd /home/ubuntu/monitoring
           
-          echo "Started Deployment on Host..."
-
-          # Decode files back to original
+          echo "Deploying files..."
           echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
           echo "$NGINX_B64" | base64 -d > nginx.conf
           echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
-
-          # Docker Operations
-          echo "Pulling latest images..."
+          
+          echo "Restarting Docker Stack..."
           docker compose pull
-          
-          echo "Restarting services..."
           docker compose up -d --remove-orphans
-          
-          echo "Pruning unused images..."
           docker system prune -f
-          
-          echo "Deployment Finished. Status:"
           docker compose ps
           EOF
 
-          # ------------------------------------------------------------------
-          # STEP 3: ENCODE THE SCRIPT ITSELF (The Fix)
-          # We encode the entire script above. This prevents JSON syntax errors.
-          # ------------------------------------------------------------------
+          # 3. Encode & Send
           SCRIPT_B64=$(echo "$REMOTE_SCRIPT" | base64 -w 0)
-
-          # ------------------------------------------------------------------
-          # STEP 4: SEND TO SSM
-          # We tell SSM to just "decode and run".
-          # ------------------------------------------------------------------
+          
           COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
             --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
@@ -111,9 +115,7 @@ jobs:
             
           echo "Command ID: $COMMAND_ID"
 
-          # ------------------------------------------------------------------
-          # STEP 5: WAIT FOR COMPLETION
-          # ------------------------------------------------------------------
+          # 4. Wait for Completion
           while true; do
             STATUS=$(aws ssm list-command-invocations \
               --command-id "$COMMAND_ID" \
@@ -121,13 +123,11 @@ jobs:
               --query "CommandInvocations[0].Status" \
               --output text)
             
-            echo "Status: $STATUS"
-            
             if [ "$STATUS" == "Success" ]; then
               echo "✅ Deployment Successful!"
               break
-            elif [ "$STATUS" == "Failed" ] || [ "$STATUS" == "Cancelled" ]; then
-              echo "❌ Deployment Failed. Fetching output..."
+            elif [ "$STATUS" == "Failed" ]; then
+              echo "❌ Deployment Failed. Output:"
               aws ssm list-command-invocations \
                 --command-id "$COMMAND_ID" \
                 --details \
