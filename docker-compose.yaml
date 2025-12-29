@@ -1,109 +1,124 @@
-version: '3.8'
+name: Deploy Monitoring Stack
 
-services:
-  # ---------------------------------------------------------------------------
-  # REVERSE PROXY (Gateway)
-  # ---------------------------------------------------------------------------
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: monitoring-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - grafana
-      - prometheus
-    networks:
-      - monitoring-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.50'
-          memory: 256M
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
 
-  # ---------------------------------------------------------------------------
-  # VISUALIZATION (Grafana)
-  # ---------------------------------------------------------------------------
-  grafana:
-    image: grafana/grafana:10.2.2
-    container_name: monitoring-grafana
-    restart: unless-stopped
-    user: "0" # Run as root to avoid volume permission issues
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin # Change this on first login!
-      - GF_USERS_ALLOW_SIGN_UP=false
-      # Critical settings for Reverse Proxy support
-      - GF_SERVER_DOMAIN=localhost
-      - GF_SERVER_ROOT_URL=http://localhost/grafana/
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
-    volumes:
-      - grafana_data:/var/lib/grafana
-    networks:
-      - monitoring-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.50'
-          memory: 512M
+concurrency:
+  group: monitoring-production
+  cancel-in-progress: true
 
-  # ---------------------------------------------------------------------------
-  # METRICS COLLECTION (Prometheus)
-  # ---------------------------------------------------------------------------
-  prometheus:
-    image: prom/prometheus:v2.48.0
-    container_name: monitoring-prometheus
-    restart: unless-stopped
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=15d'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    networks:
-      - monitoring-network
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
+jobs:
+  deploy:
+    name: Deploy via SSM
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-  # ---------------------------------------------------------------------------
-  # HOST MONITORING (Node Exporter)
-  # ---------------------------------------------------------------------------
-  node-exporter:
-    image: prom/node-exporter:v1.7.0
-    container_name: monitoring-node-exporter
-    restart: unless-stopped
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)'
-    networks:
-      - monitoring-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 128M
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION_NAME }}
 
-# ---------------------------------------------------------------------------
-# NETWORKS & VOLUMES
-# ---------------------------------------------------------------------------
-networks:
-  monitoring-network:
-    driver: bridge
+      - name: Resolve Instance ID
+        id: get-instance
+        run: |
+          # Retrieve Instance ID using the Public IP from secrets
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=ip-address,Values=${{ secrets.MONITORING_HOST }}" \
+            --query "Reservations[*].Instances[*].InstanceId" \
+            --output text)
+          
+          if [ -z "$INSTANCE_ID" ]; then
+            echo "Error: Could not find Instance ID for IP ${{ secrets.MONITORING_HOST }}"
+            exit 1
+          fi
+          
+          echo "Target Instance ID: $INSTANCE_ID"
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
 
-volumes:
-  grafana_data:
-  prometheus_data:
+      - name: Deploy and Start Stack (SSM)
+        run: |
+          # 1. Base64 Encode Config Files
+          # UPDATED: Using .yaml extension as requested
+          COMPOSE_B64=$(base64 -w 0 docker-compose.yaml)
+          NGINX_B64=$(base64 -w 0 nginx.conf)
+          PROMETHEUS_B64=$(base64 -w 0 prometheus.yaml)
+
+          # 2. Define the Remote Execution Logic
+          # This script will run ON the EC2 instance.
+          read -r -d '' REMOTE_EXECUTION_LOGIC <<EOF
+          set -e # Stop execution if any command fails
+          
+          # Navigate/Create Directory
+          cd /home/ubuntu
+          mkdir -p monitoring
+          cd monitoring
+          
+          echo "Starting Deployment..."
+          docker --version
+
+          # Decode and Write Config Files (Preserving .yaml)
+          echo "$COMPOSE_B64" | base64 -d > docker-compose.yaml
+          echo "$NGINX_B64" | base64 -d > nginx.conf
+          echo "$PROMETHEUS_B64" | base64 -d > prometheus.yaml
+
+          # Restart Stack (Zero Downtime)
+          echo "Pulling latest images..."
+          docker compose pull
+          
+          echo "Restarting services..."
+          # Docker Compose will automatically find docker-compose.yaml
+          docker compose up -d --remove-orphans
+          
+          echo "Cleaning up..."
+          docker system prune -f
+          
+          echo "Deployment Complete. Current Status:"
+          docker compose ps
+          EOF
+
+          # 3. Encode the ENTIRE script
+          # This prevents JSON escaping errors and newline corruption in AWS CLI
+          SCRIPT_B64=$(echo "$REMOTE_EXECUTION_LOGIC" | base64 -w 0)
+
+          # 4. Send Command via SSM
+          # We simply tell the server: "Take this blob, decode it, and run it as bash"
+          COMMAND_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
+            --parameters commands="[\"echo \$SCRIPT_B64 | base64 -d | bash\"]" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "Command sent: $COMMAND_ID"
+
+          # 5. Wait for Completion
+          while true; do
+            STATUS=$(aws ssm list-command-invocations \
+              --command-id "$COMMAND_ID" \
+              --details \
+              --query "CommandInvocations[0].Status" \
+              --output text)
+            
+            echo "Deployment Status: $STATUS"
+            
+            if [ "$STATUS" == "Success" ]; then
+              echo "✅ Deployment Successful!"
+              break
+            elif [ "$STATUS" == "Failed" ] || [ "$STATUS" == "Cancelled" ]; then
+              echo "❌ Deployment Failed. Fetching error logs..."
+              aws ssm list-command-invocations \
+                --command-id "$COMMAND_ID" \
+                --details \
+                --query "CommandInvocations[0].CommandPlugins[0].Output" \
+                --output text
+              exit 1
+            fi
+            sleep 5
+          done
