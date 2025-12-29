@@ -11,35 +11,102 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to EC2
+    name: Deploy via SSM
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Copy Config Files to Server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.MONITORING_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.yml,nginx.conf,prometheus.yml"
-          target: "/home/ubuntu/monitoring"
-          strip_components: 0
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION_NAME }}
 
-      - name: Start Monitoring Stack
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.MONITORING_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd /home/ubuntu/monitoring
-            echo "Deploying with Docker Version:"
-            docker --version
-            docker compose pull
-            docker compose up -d --remove-orphans
-            docker system prune -f
-            echo "Deployment Complete."
-            docker compose ps
+      - name: Resolve Instance ID
+        id: get-instance
+        run: |
+          # We use the Public IP to find the specific Instance ID for SSM
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=ip-address,Values=${{ secrets.MONITORING_HOST }}" \
+            --query "Reservations[*].Instances[*].InstanceId" \
+            --output text)
+          
+          if [ -z "$INSTANCE_ID" ]; then
+            echo "Error: Could not find Instance ID for IP ${{ secrets.MONITORING_HOST }}"
+            exit 1
+          fi
+          
+          echo "Target Instance ID: $INSTANCE_ID"
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Deploy and Start Stack (SSM)
+        run: |
+          # 1. Prepare Files (Base64 Encode to prevent shell escaping issues)
+          COMPOSE_B64=$(base64 -w 0 docker-compose.yml)
+          NGINX_B64=$(base64 -w 0 nginx.conf)
+          PROMETHEUS_B64=$(base64 -w 0 prometheus.yml)
+
+          # 2. Construct the Remote Script
+          # This script runs ON the EC2 instance.
+          # We use a safe 'write_file' function to decode the content.
+          read -r -d '' REMOTE_SCRIPT <<EOF
+          cd /home/ubuntu
+          mkdir -p monitoring
+          cd monitoring
+          
+          echo "Deploying with Docker Version:"
+          docker --version
+
+          # Write Config Files
+          echo "$COMPOSE_B64" | base64 -d > docker-compose.yml
+          echo "$NGINX_B64" | base64 -d > nginx.conf
+          echo "$PROMETHEUS_B64" | base64 -d > prometheus.yml
+
+          # Restart Stack
+          docker compose pull
+          docker compose up -d --remove-orphans
+          docker system prune -f
+          
+          echo "Deployment Complete. Running containers:"
+          docker compose ps
+          EOF
+
+          # 3. Send Command via SSM
+          # We wrap the script in a JSON array for the AWS CLI
+          COMMAND_ID=$(aws ssm send-command \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=InstanceIds,Values=${{ steps.get-instance.outputs.instance_id }}" \
+            --parameters commands="[\"$(echo $REMOTE_SCRIPT | sed 's/"/\\"/g')\"]" \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "Command sent: $COMMAND_ID"
+
+          # 4. Wait for Completion
+          # Poll the status until it finishes
+          while true; do
+            STATUS=$(aws ssm list-command-invocations \
+              --command-id "$COMMAND_ID" \
+              --details \
+              --query "CommandInvocations[0].Status" \
+              --output text)
+            
+            echo "Status: $STATUS"
+            
+            if [ "$STATUS" == "Success" ]; then
+              echo "Deployment Successful!"
+              break
+            elif [ "$STATUS" == "Failed" ]; then
+              echo "Deployment Failed. Fetching output..."
+              aws ssm list-command-invocations \
+                --command-id "$COMMAND_ID" \
+                --details \
+                --query "CommandInvocations[0].CommandPlugins[0].Output" \
+                --output text
+              exit 1
+            fi
+            sleep 5
+          done
