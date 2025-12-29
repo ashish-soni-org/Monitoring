@@ -2,85 +2,30 @@ version: '3.8'
 
 services:
   # ---------------------------------------------------------------------------
-  # REVERSE PROXY (Gateway)
-  # ---------------------------------------------------------------------------
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: monitoring-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - grafana
-      - prometheus
-    networks:
-      - monitoring-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.50'
-          memory: 256M
-
-  # ---------------------------------------------------------------------------
-  # VISUALIZATION (Grafana)
-  # ---------------------------------------------------------------------------
-  grafana:
-    image: grafana/grafana:10.2.2
-    container_name: monitoring-grafana
-    restart: unless-stopped
-    user: "0" # Run as root to avoid volume permission issues
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin # Change this on first login!
-      - GF_USERS_ALLOW_SIGN_UP=false
-      # Critical settings for Reverse Proxy support
-      - GF_SERVER_DOMAIN=localhost
-      - GF_SERVER_ROOT_URL=http://localhost/grafana/
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
-    volumes:
-      - grafana_data:/var/lib/grafana
-    networks:
-      - monitoring-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.50'
-          memory: 512M
-
-  # ---------------------------------------------------------------------------
-  # METRICS COLLECTION (Prometheus)
+  # Prometheus: The Metrics Storage Engine
   # ---------------------------------------------------------------------------
   prometheus:
-    image: prom/prometheus:v2.48.0
-    container_name: monitoring-prometheus
+    image: prom/prometheus:v2.50.1
+    container_name: monitoring_prometheus
     restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--web.enable-lifecycle'
-    volumes:
-      # Mapping local .yaml to container .yml
-      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
     networks:
-      - monitoring-network
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
+      - monitoring_network
 
   # ---------------------------------------------------------------------------
-  # HOST MONITORING (Node Exporter)
+  # Node Exporter: Exposes Host (EC2) Hardware & OS Metrics
   # ---------------------------------------------------------------------------
   node-exporter:
     image: prom/node-exporter:v1.7.0
-    container_name: monitoring-node-exporter
+    container_name: monitoring_node_exporter
     restart: unless-stopped
     volumes:
       - /proc:/host/proc:ro
@@ -89,22 +34,56 @@ services:
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
     networks:
-      - monitoring-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 128M
+      - monitoring_network
 
-# ---------------------------------------------------------------------------
-# NETWORKS & VOLUMES
-# ---------------------------------------------------------------------------
-networks:
-  monitoring-network:
-    driver: bridge
+  # ---------------------------------------------------------------------------
+  # cAdvisor: Exposes Docker Container Metrics (CPU/RAM per container)
+  # ---------------------------------------------------------------------------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: monitoring_cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - monitoring_network
+
+  # ---------------------------------------------------------------------------
+  # Grafana: The Visualization Dashboard
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.3.3
+    container_name: monitoring_grafana
+    restart: unless-stopped
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # Change this in production
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring_network
 
 volumes:
-  grafana_data:
   prometheus_data:
+  grafana_data:
+
+networks:
+  monitoring_network:
+    driver: bridge

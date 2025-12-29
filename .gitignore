@@ -209,15 +209,20 @@ __marimo__/
 # Extras
 # OS generated files
 .DS_Store
-.Thumbs.db
-
-# Secrets
-.env
-*.pem
-*.key
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # Docker
 docker-compose.override.yml
 
-# Logs
-*.log
+# Environment variables (Credential safety)
+.env
+
+# Editor directories
+.idea/
+.vscode/
+*.swp
