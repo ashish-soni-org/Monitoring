@@ -1,0 +1,45 @@
+name: Deploy Monitoring Stack
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: monitoring-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Copy Config Files to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.MONITORING_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml,nginx.conf,prometheus.yml"
+          target: "/home/ubuntu/monitoring"
+          strip_components: 0
+
+      - name: Start Monitoring Stack
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.MONITORING_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/monitoring
+            echo "Deploying with Docker Version:"
+            docker --version
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker system prune -f
+            echo "Deployment Complete."
+            docker compose ps
