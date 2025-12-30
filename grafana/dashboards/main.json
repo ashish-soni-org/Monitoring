@@ -49,11 +49,11 @@
     {
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
       "id": 4,
-      "title": "Application Metrics (Business Only)",
+      "title": "Application Metrics (Live - Instant)",
       "type": "table",
       "targets": [
         { 
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", 
+          "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "CPU" 
@@ -71,16 +71,16 @@
           "legendFormat": "Uptime" 
         },
         { 
-          "expr": "sum by (name) (rate(container_network_receive_bytes_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
+          "expr": "sum by (name) (irate(container_network_receive_bytes_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
           "format": "table", 
           "instant": true, 
-          "legendFormat": "Net In" 
+          "legendFormat": "Net In (Live)" 
         },
         { 
-          "expr": "sum by (name) (rate(container_network_transmit_bytes_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
+          "expr": "sum by (name) (irate(container_network_transmit_bytes_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
           "format": "table", 
           "instant": true, 
-          "legendFormat": "Net Out" 
+          "legendFormat": "Net Out (Live)" 
         },
         { 
           "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})", 
@@ -101,8 +101,8 @@
                "Value #A": "CPU %", 
                "Value #B": "RAM Usage", 
                "Value #C": "Uptime", 
-               "Value #D": "Network Input (Requests)",
-               "Value #E": "Network Output (Responses)",
+               "Value #D": "Net In (Live Activity)",
+               "Value #E": "Net Out (Live Response)",
                "Value #F": "Health Status" 
              } 
            } 
@@ -113,8 +113,8 @@
         "overrides": [ 
           { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" } ] }, 
           { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "decbytes" } ] },
-          { "matcher": { "id": "byName", "options": "Network Input (Requests)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
-          { "matcher": { "id": "byName", "options": "Network Output (Responses)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
+          { "matcher": { "id": "byName", "options": "Net In (Live Activity)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
+          { "matcher": { "id": "byName", "options": "Net Out (Live Response)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
           { 
             "matcher": { "id": "byName", "options": "Uptime" }, 
             "properties": [ 
