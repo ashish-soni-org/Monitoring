@@ -12,7 +12,7 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
-    # Security: No external ports. Accessed only by Grafana internally.
+    # No ports exposed. Internal network only.
     networks:
       - monitoring_network
 
@@ -29,7 +29,7 @@ services:
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     ports:
-      - "9100:9100" # Node Exporter usually stays open for scraping, can be closed if Prom is local
+      - "9100:9100"
     networks:
       - monitoring_network
 
@@ -50,7 +50,7 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
-    # Security: External port 8080 REMOVED. Accessed only by Prometheus internally.
+    # FIXED: Ports removed. Prevents conflict on 8080.
     networks:
       - monitoring_network
 
@@ -69,7 +69,7 @@ services:
       - GF_SERVER_DOMAIN=localhost
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
-    # Security: External port 3000 REMOVED. Accessed only via Nginx.
+    # FIXED: Ports removed. Forces traffic through Nginx.
     networks:
       - monitoring_network
 
