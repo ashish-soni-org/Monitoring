@@ -11,7 +11,7 @@
       "id": 1,
       "title": "EC2 CPU Usage",
       "type": "timeseries",
-      "targets": [ { "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)", "legendFormat": "CPU Load" } ],
+      "targets": [ { "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode='idle'}[1m])) * 100)", "legendFormat": "CPU Load" } ],
       "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 80 } ] } } }
     },
     {
@@ -37,13 +37,13 @@
       "type": "table",
       "targets": [
         { 
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{id!='/'}[5m])) * 100", 
+          "expr": "sum by (image) (rate(container_cpu_usage_seconds_total{id!='/'}[1m])) * 100", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "CPU" 
         },
         { 
-          "expr": "sum by (name) (container_memory_usage_bytes{id!='/'})", 
+          "expr": "sum by (image) (container_memory_usage_bytes{id!='/'})", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "RAM" 
