@@ -33,7 +33,6 @@ services:
       - monitoring_network
 
   cadvisor:
-    # UPGRADED: v0.49.1 supports Ubuntu 24.04 Kernel
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: monitoring_cadvisor
     restart: unless-stopped
@@ -47,6 +46,8 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      # THE FIX: Explicitly mount the Docker socket
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - monitoring_network
 
@@ -62,7 +63,6 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
-      # Public IP Configuration
       - GF_SERVER_DOMAIN=13.205.64.221
       - GF_SERVER_ROOT_URL=http://13.205.64.221:8081/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true

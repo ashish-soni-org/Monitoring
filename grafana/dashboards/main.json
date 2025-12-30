@@ -37,13 +37,13 @@
       "type": "table",
       "targets": [
         { 
-          "expr": "sum by (image) (rate(container_cpu_usage_seconds_total{id!='/'}[1m])) * 100", 
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name!=''}[1m])) * 100", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "CPU" 
         },
         { 
-          "expr": "sum by (image) (container_memory_usage_bytes{id!='/'})", 
+          "expr": "sum by (name) (container_memory_usage_bytes{name!=''})", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "RAM" 
