@@ -11,7 +11,7 @@
       "id": 1,
       "title": "EC2 CPU Usage",
       "type": "timeseries",
-      "targets": [ { "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode='idle'}[5s])) * 100)", "legendFormat": "CPU Load", "interval": "1s" } ],
+      "targets": [ { "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode='idle'}[5s])) * 100)", "legendFormat": "CPU Load", "interval": "5s" } ],
       "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 80 } ] } } }
     },
     {
@@ -20,8 +20,8 @@
       "title": "EC2 RAM Usage (MB/GB)",
       "type": "timeseries",
       "targets": [
-        { "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "legendFormat": "RAM Used", "interval": "1s" },
-        { "expr": "node_memory_MemTotal_bytes", "legendFormat": "Total RAM", "interval": "1s" }
+        { "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "legendFormat": "RAM Used", "interval": "5s" },
+        { "expr": "node_memory_MemTotal_bytes", "legendFormat": "Total RAM", "interval": "5s" }
       ],
       "fieldConfig": { 
         "defaults": { 
@@ -37,19 +37,19 @@
       "id": 3,
       "title": "Disk Usage (Root)",
       "type": "gauge",
-      "targets": [ { "expr": "100 - ((node_filesystem_avail_bytes{mountpoint='/'} * 100) / node_filesystem_size_bytes{mountpoint='/'})", "legendFormat": "Disk Used", "interval": "1s" } ],
+      "targets": [ { "expr": "100 - ((node_filesystem_avail_bytes{mountpoint='/'} * 100) / node_filesystem_size_bytes{mountpoint='/'})", "legendFormat": "Disk Used", "interval": "5s" } ],
       "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 90 } ] } } }
     },
     {
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
       "id": 4,
-      "title": "Application Metrics (Live 1s Update)",
+      "title": "Application Metrics (Live 5s Update)",
       "type": "table",
       "targets": [
-        { "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", "format": "table", "instant": true, "interval": "1s" },
-        { "expr": "sum by (name) (container_memory_usage_bytes{id!=\"/\"} * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "1s" },
-        { "expr": "sum by (name) ((time() - container_start_time_seconds{id!=\"/\"}) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "1s" },
-        { "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "1s" }
+        { "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", "format": "table", "instant": true, "interval": "5s" },
+        { "expr": "sum by (name) (container_memory_usage_bytes{id!=\"/\"} * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "5s" },
+        { "expr": "sum by (name) ((time() - container_start_time_seconds{id!=\"/\"}) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "5s" },
+        { "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "5s" }
       ],
       "transformations": [
         { "id": "merge", "options": {} },
@@ -66,7 +66,7 @@
       }
     }
   ],
-  "refresh": "1s",
+  "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
   "tags": ["automated"],
