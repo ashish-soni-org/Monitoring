@@ -31,7 +31,7 @@
       ],
       "fieldConfig": { 
         "defaults": { 
-          "unit": "bytes", 
+          "unit": "decbytes", 
           "min": 0,
           "custom": {
             "axisLabel": "",
@@ -119,7 +119,7 @@
         "defaults": { "unit": "short" }, 
         "overrides": [ 
           { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" } ] }, 
-          { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "bytes" } ] },
+          { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "decbytes" } ] },
           { 
             "matcher": { "id": "byName", "options": "Uptime" }, 
             "properties": [ 
