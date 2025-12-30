@@ -37,19 +37,29 @@
       "type": "table",
       "targets": [
         { 
-          "expr": "sum by (name, id) (rate(container_cpu_usage_seconds_total{id!='/'}[1m])) * 100", 
+          "expr": "sum by (name, image, id) (rate(container_cpu_usage_seconds_total{id=~\".*docker.*\"}[1m])) * 100", 
           "format": "table", 
           "instant": true, 
-          "legendFormat": "{{name}} {{id}}" 
+          "legendFormat": "CPU" 
         },
         { 
-          "expr": "sum by (name, id) (container_memory_usage_bytes{id!='/'})", 
+          "expr": "sum by (name, image, id) (container_memory_usage_bytes{id=~\".*docker.*\"})", 
           "format": "table", 
           "instant": true, 
-          "legendFormat": "{{name}} {{id}}" 
+          "legendFormat": "RAM" 
         }
       ],
-      "transformations": [ { "id": "merge", "options": {} } ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        { 
+           "id": "organize", 
+           "options": { 
+             "excludeByName": {}, 
+             "indexByName": {}, 
+             "renameByName": { "id": "Container ID / Path", "name": "Name", "image": "Image" } 
+           } 
+        }
+      ],
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [ { "matcher": { "id": "byName", "options": "Value #A" }, "properties": [ { "id": "unit", "value": "percent" }, { "id": "displayName", "value": "CPU" } ] }, { "matcher": { "id": "byName", "options": "Value #B" }, "properties": [ { "id": "unit", "value": "bytes" }, { "id": "displayName", "value": "RAM" } ] } ] }
     }
   ],
