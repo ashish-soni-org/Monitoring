@@ -53,6 +53,12 @@
           "format": "table", 
           "instant": true, 
           "legendFormat": "Uptime" 
+        },
+        { 
+          "expr": "sum by (name) (container_meta_info)", 
+          "format": "table", 
+          "instant": true, 
+          "legendFormat": "Status" 
         }
       ],
       "transformations": [
@@ -62,7 +68,7 @@
            "options": { 
              "excludeByName": {}, 
              "indexByName": {}, 
-             "renameByName": { "name": "Container Name", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime / Health" } 
+             "renameByName": { "name": "Container Name", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime", "Value #D": "Health Status" } 
            } 
         }
       ],
@@ -72,10 +78,16 @@
           { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" } ] }, 
           { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "bytes" } ] },
           { 
-            "matcher": { "id": "byName", "options": "Uptime / Health" }, 
+            "matcher": { "id": "byName", "options": "Uptime" }, 
             "properties": [ 
               { "id": "unit", "value": "s" }, 
               { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 60 }, { "color": "green", "value": 300 } ] } } 
+            ] 
+          },
+          { 
+            "matcher": { "id": "byName", "options": "Health Status" }, 
+            "properties": [ 
+              { "id": "mappings", "value": [ { "type": "value", "options": { "1": { "color": "green", "index": 0, "text": "RUNNING" } } } ] } 
             ] 
           } 
         ] 
