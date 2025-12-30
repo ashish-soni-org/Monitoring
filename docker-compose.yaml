@@ -33,17 +33,18 @@ services:
       - monitoring_network
 
   cadvisor:
-    # Zcube image (Confirmed working manually)
     image: zcube/cadvisor:latest
     container_name: monitoring_cadvisor
     restart: unless-stopped
     privileged: true
+    # FIX 1: Allow cAdvisor to see Host Processes (Critical for discovery)
+    pid: host
     devices:
       - /dev/kmsg
-    # FIX: Use standard list format for arguments
     command:
-      - '-docker_only=true'
+      # FIX 2: Removed -docker_only to unmask the containers
       - '-housekeeping_interval=10s'
+      - '-disable_metrics=disk,network,tcp,udp,percpu,sched,process'
     environment:
       - DOCKER_API_VERSION=1.44
     volumes:
