@@ -3,7 +3,8 @@ name: Deploy via SSM
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
+  repository_dispatch:
+    types: [event-on-demand-build]
 
 jobs:
   deploy-ssm:
