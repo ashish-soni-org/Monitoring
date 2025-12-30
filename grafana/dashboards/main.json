@@ -33,34 +33,7 @@
         "defaults": { 
           "unit": "decbytes", 
           "min": 0,
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
+          "custom": { "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 10, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5, "showPoints": "auto", "spanNulls": false },
           "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } 
         } 
       }
@@ -98,6 +71,18 @@
           "legendFormat": "Uptime" 
         },
         { 
+          "expr": "sum by (name) (rate(container_network_receive_bytes_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
+          "format": "table", 
+          "instant": true, 
+          "legendFormat": "Net In" 
+        },
+        { 
+          "expr": "sum by (name) (rate(container_network_transmit_bytes_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
+          "format": "table", 
+          "instant": true, 
+          "legendFormat": "Net Out" 
+        },
+        { 
           "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})", 
           "format": "table", 
           "instant": true, 
@@ -111,7 +96,15 @@
            "options": { 
              "excludeByName": {}, 
              "indexByName": {}, 
-             "renameByName": { "name": "Application Name", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime", "Value #D": "Health Status" } 
+             "renameByName": { 
+               "name": "Application Name", 
+               "Value #A": "CPU %", 
+               "Value #B": "RAM Usage", 
+               "Value #C": "Uptime", 
+               "Value #D": "Network Input (Requests)",
+               "Value #E": "Network Output (Responses)",
+               "Value #F": "Health Status" 
+             } 
            } 
         }
       ],
@@ -120,6 +113,8 @@
         "overrides": [ 
           { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" } ] }, 
           { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "decbytes" } ] },
+          { "matcher": { "id": "byName", "options": "Network Input (Requests)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
+          { "matcher": { "id": "byName", "options": "Network Output (Responses)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
           { 
             "matcher": { "id": "byName", "options": "Uptime" }, 
             "properties": [ 
