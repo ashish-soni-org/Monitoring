@@ -33,29 +33,29 @@
     {
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
       "id": 4,
-      "title": "Docker Container Metrics (Dynamic)",
+      "title": "Application Metrics (Business Only)",
       "type": "table",
       "targets": [
         { 
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info) * 100", 
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "CPU" 
         },
         { 
-          "expr": "sum by (name) (container_memory_usage_bytes{id!=\"/\"} * on(id) group_left(name) container_meta_info)", 
+          "expr": "sum by (name) (container_memory_usage_bytes{id!=\"/\"} * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "RAM" 
         },
         { 
-          "expr": "sum by (name) ((time() - container_start_time_seconds{id!=\"/\"}) * on(id) group_left(name) container_meta_info)", 
+          "expr": "sum by (name) ((time() - container_start_time_seconds{id!=\"/\"}) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "Uptime" 
         },
         { 
-          "expr": "sum by (name) (container_meta_info)", 
+          "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "Status" 
@@ -68,7 +68,7 @@
            "options": { 
              "excludeByName": {}, 
              "indexByName": {}, 
-             "renameByName": { "name": "Container Name", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime", "Value #D": "Health Status" } 
+             "renameByName": { "name": "Application Name", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime", "Value #D": "Health Status" } 
            } 
         }
       ],
