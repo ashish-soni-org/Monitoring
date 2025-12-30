@@ -27,27 +27,6 @@ services:
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-      - '--collector.textfile.directory=/var/lib/node_exporter'
-    ports:
-      - "9100:9100"
-    networks:
-      - monitoring_network
-
-  meta-exporter:
-    image: docker:cli
-    container_name: monitoring_meta_exporter
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - metrics_data:/metrics
-    entrypoint: >
-      sh -c "while true; do
-        echo '# HELP container_meta_info Map Docker IDs to Names' > /metrics/containers.prom;
-        echo '# TYPE container_meta_info gauge' >> /metrics/containers.prom;
-        docker ps --no-trunc --format 'container_meta_info{id=\"/system.slice/docker-{{.ID}}.scope\", name=\"{{.Names}}\", image=\"{{.Image}}\"} 1' >> /metrics/containers.prom;
-        sleep 10;
-      done"
     networks:
       - monitoring_network
 
@@ -56,23 +35,15 @@ services:
     container_name: monitoring_cadvisor
     restart: unless-stopped
     privileged: true
-    pid: host
-    devices:
-      - /dev/kmsg
     command:
       - '-housekeeping_interval=10s'
-      # FIX: Removed "network,tcp,udp" from the block list
       - '-disable_metrics=disk,percpu,sched,process'
-    environment:
-      - DOCKER_API_VERSION=1.44
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:rw
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
-      - /sys/fs/cgroup:/sys/fs/cgroup:rw
-      - /var/run/docker.sock:/var/run/docker.sock:rw
     networks:
       - monitoring_network
 
@@ -87,10 +58,14 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_DOMAIN=13.205.64.221
       - GF_SERVER_ROOT_URL=http://13.205.64.221:8081/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      # NEW: Enable Public Embedding
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
     networks:
       - monitoring_network
 
