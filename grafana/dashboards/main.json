@@ -33,23 +33,23 @@
     {
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
       "id": 4,
-      "title": "Docker Container Metrics",
+      "title": "Docker Container Metrics (Dynamic)",
       "type": "table",
       "targets": [
         { 
-          "expr": "label_replace(sum by (id) (rate(container_cpu_usage_seconds_total{id=~\"/system.slice/docker-.*\"}[1m])) * 100, \"short_id\", \"$1\", \"id\", \".*docker-(.{12}).*\")", 
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info) * 100", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "CPU" 
         },
         { 
-          "expr": "label_replace(sum by (id) (container_memory_usage_bytes{id=~\"/system.slice/docker-.*\"}), \"short_id\", \"$1\", \"id\", \".*docker-(.{12}).*\")", 
+          "expr": "sum by (name) (container_memory_usage_bytes{id!=\"/\"} * on(id) group_left(name) container_meta_info)", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "RAM" 
         },
         { 
-          "expr": "label_replace(time() - sum by (id) (container_start_time_seconds{id=~\"/system.slice/docker-.*\"}), \"short_id\", \"$1\", \"id\", \".*docker-(.{12}).*\")", 
+          "expr": "sum by (name) ((time() - container_start_time_seconds{id!=\"/\"}) * on(id) group_left(name) container_meta_info)", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "Uptime" 
@@ -60,9 +60,9 @@
         { 
            "id": "organize", 
            "options": { 
-             "excludeByName": { "id": true }, 
+             "excludeByName": {}, 
              "indexByName": {}, 
-             "renameByName": { "short_id": "Container ID", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime / Health" } 
+             "renameByName": { "name": "Container Name", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime / Health" } 
            } 
         }
       ],

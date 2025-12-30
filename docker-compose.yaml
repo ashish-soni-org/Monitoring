@@ -23,12 +23,38 @@ services:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
       - /:/rootfs:ro
+      # MOUNT 1: Read the generated metadata
+      - metrics_data:/var/lib/node_exporter
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      # FLAG 2: Enable reading the metadata file
+      - '--collector.textfile.directory=/var/lib/node_exporter'
     ports:
       - "9100:9100"
+    networks:
+      - monitoring_network
+
+  # ---------------------------------------------------------
+  # THE DYNAMIC FIX: A Sidecar that maps IDs to Names
+  # ---------------------------------------------------------
+  meta-exporter:
+    image: docker:cli
+    container_name: monitoring_meta_exporter
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # MOUNT 3: Write the metadata here
+      - metrics_data:/metrics
+    # The Script: Loop forever, ask Docker for names, format them as Prometheus metrics
+    entrypoint: >
+      sh -c "while true; do
+        echo '# HELP container_meta_info Map Docker IDs to Names' > /metrics/containers.prom;
+        echo '# TYPE container_meta_info gauge' >> /metrics/containers.prom;
+        docker ps --no-trunc --format 'container_meta_info{id=\"/system.slice/docker-{{.ID}}.scope\", name=\"{{.Names}}\", image=\"{{.Image}}\"} 1' >> /metrics/containers.prom;
+        sleep 10;
+      done"
     networks:
       - monitoring_network
 
@@ -37,12 +63,10 @@ services:
     container_name: monitoring_cadvisor
     restart: unless-stopped
     privileged: true
-    # FIX 1: Allow cAdvisor to see Host Processes (Critical for discovery)
     pid: host
     devices:
       - /dev/kmsg
     command:
-      # FIX 2: Removed -docker_only to unmask the containers
       - '-housekeeping_interval=10s'
       - '-disable_metrics=disk,network,tcp,udp,percpu,sched,process'
     environment:
@@ -90,6 +114,7 @@ services:
 volumes:
   prometheus_data:
   grafana_data:
+  metrics_data: # The shared brain
 
 networks:
   monitoring_network:
