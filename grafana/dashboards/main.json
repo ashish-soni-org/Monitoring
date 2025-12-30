@@ -49,21 +49,17 @@
         { "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", "format": "table", "instant": true, "interval": "1s" },
         { "expr": "sum by (name) (container_memory_usage_bytes{id!=\"/\"} * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "1s" },
         { "expr": "sum by (name) ((time() - container_start_time_seconds{id!=\"/\"}) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "1s" },
-        { "expr": "sum by (name) (irate(container_network_receive_bytes_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "1s" },
-        { "expr": "sum by (name) (irate(container_network_transmit_bytes_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "1s" },
         { "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "interval": "1s" }
       ],
       "transformations": [
         { "id": "merge", "options": {} },
-        { "id": "organize", "options": { "excludeByName": {}, "indexByName": {}, "renameByName": { "name": "Application Name", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime", "Value #D": "Net In (Activity)", "Value #E": "Net Out (Response)", "Value #F": "Health Status" } } }
+        { "id": "organize", "options": { "excludeByName": {}, "indexByName": {}, "renameByName": { "name": "Application Name", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime", "Value #D": "Health Status" } } }
       ],
       "fieldConfig": { 
         "defaults": { "unit": "short" }, 
         "overrides": [ 
           { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" }, { "id": "decimals", "value": 1 } ] }, 
           { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "decbytes" }, { "id": "decimals", "value": 0 } ] },
-          { "matcher": { "id": "byName", "options": "Net In (Activity)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
-          { "matcher": { "id": "byName", "options": "Net Out (Response)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
           { "matcher": { "id": "byName", "options": "Uptime" }, "properties": [ { "id": "unit", "value": "dthms" } ] },
           { "matcher": { "id": "byName", "options": "Health Status" }, "properties": [ { "id": "mappings", "value": [ { "type": "value", "options": { "1": { "color": "green", "text": "RUNNING" } } } ] } ] }
         ] 
