@@ -80,7 +80,7 @@
           { 
             "matcher": { "id": "byName", "options": "Uptime" }, 
             "properties": [ 
-              { "id": "unit", "value": "s" }, 
+              { "id": "unit", "value": "dthms" }, 
               { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 60 }, { "color": "green", "value": 300 } ] } } 
             ] 
           },
