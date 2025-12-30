@@ -12,8 +12,7 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
-    ports:
-      - "9090:9090"
+    # Security: No external ports. Accessed only by Grafana internally.
     networks:
       - monitoring_network
 
@@ -30,7 +29,7 @@ services:
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     ports:
-      - "9100:9100"
+      - "9100:9100" # Node Exporter usually stays open for scraping, can be closed if Prom is local
     networks:
       - monitoring_network
 
@@ -51,8 +50,7 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
-    ports:
-      - "8080:8080"
+    # Security: External port 8080 REMOVED. Accessed only by Prometheus internally.
     networks:
       - monitoring_network
 
@@ -69,11 +67,9 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SERVER_DOMAIN=localhost
-      # CRITICAL: Root URL must match the new configuration
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
-    ports:
-      - "3000:3000"
+    # Security: External port 3000 REMOVED. Accessed only via Nginx.
     networks:
       - monitoring_network
 
@@ -84,8 +80,8 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      # CHANGED: Listen on external 8080 to avoid conflict with your FastAPI apps
-      - "8080:80"
+      # THE FIX: Map external 8081 to internal 80
+      - "8081:80"
     networks:
       - monitoring_network
 
