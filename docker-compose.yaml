@@ -1,9 +1,6 @@
 version: '3.8'
 
 services:
-  # ---------------------------------------------------------------------------
-  # Prometheus: The Metrics Storage Engine
-  # ---------------------------------------------------------------------------
   prometheus:
     image: prom/prometheus:v2.50.1
     container_name: monitoring_prometheus
@@ -20,9 +17,6 @@ services:
     networks:
       - monitoring_network
 
-  # ---------------------------------------------------------------------------
-  # Node Exporter: Exposes Host (EC2) Hardware & OS Metrics
-  # ---------------------------------------------------------------------------
   node-exporter:
     image: prom/node-exporter:v1.7.0
     container_name: monitoring_node_exporter
@@ -40,9 +34,6 @@ services:
     networks:
       - monitoring_network
 
-  # ---------------------------------------------------------------------------
-  # cAdvisor: Exposes Docker Container Metrics (CPU/RAM per container)
-  # ---------------------------------------------------------------------------
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.47.2
     container_name: monitoring_cadvisor
@@ -50,33 +41,53 @@ services:
     privileged: true
     devices:
       - /dev/kmsg
+    # FIX: "docker_only" prevents cAdvisor from crashing on Ubuntu 24.04
+    command:
+      - '-docker_only=true'
+      - '-housekeeping_interval=10s'
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+      # FIX: Mount cgroups for metrics to work
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
     ports:
       - "8080:8080"
     networks:
       - monitoring_network
 
-  # ---------------------------------------------------------------------------
-  # Grafana: The Visualization Dashboard
-  # ---------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:10.3.3
     container_name: monitoring_grafana
     restart: unless-stopped
     volumes:
       - grafana_data:/var/lib/grafana
+      # Mount provisioning config and dashboards
       - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin  # Change this in production
+      - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      # CRITICAL: Settings to serve Grafana under /grafana subpath
+      - GF_SERVER_DOMAIN=localhost
+      - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     ports:
       - "3000:3000"
+    networks:
+      - monitoring_network
+
+  nginx:
+    image: nginx:latest
+    container_name: monitoring_nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
     networks:
       - monitoring_network
 

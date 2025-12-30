@@ -16,15 +16,13 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          # Preserved your specific secret name for region
           aws-region: ${{ secrets.AWS_REGION_NAME }}
 
       - name: Deploy to EC2
         run: |
           echo "🔍 Finding Instance with tag 'Monitoring=true'..."
           
-          # 1. Dynamic Discovery (Get Instance ID)
-          # Note: Tags are case-sensitive. Ensure your EC2 tag key is exactly "Monitoring"
+          # 1. Dynamic Discovery
           INSTANCE_ID=$(aws ec2 describe-instances \
             --filters "Name=tag:Monitoring,Values=true" "Name=instance-state-name,Values=running" \
             --query "Reservations[].Instances[].InstanceId" \
@@ -37,22 +35,24 @@ jobs:
           
           echo "✅ Found Target: $INSTANCE_ID"
 
-          # 2. Define Commands safely using jq
-          # This creates a strictly formatted JSON file to avoid quoting errors in the shell.
-          jq -n --arg cmd1 "cd /opt/monitoring" \
-                --arg cmd2 "echo '⬇️ Fetching latest code...'" \
-                --arg cmd3 "sudo git fetch origin main" \
-                --arg cmd4 "sudo git reset --hard origin/main" \
-                --arg cmd5 "echo '🐳 Updating Docker images...'" \
-                --arg cmd6 "sudo docker compose pull" \
-                --arg cmd7 "echo '🚀 Restarting Stack...'" \
-                --arg cmd8 "sudo docker compose up -d --remove-orphans" \
-                --arg cmd9 "echo '🧹 Cleaning up...'" \
-                --arg cmd10 "sudo docker image prune -f" \
-                '{"commands": [$cmd1, $cmd2, $cmd3, $cmd4, $cmd5, $cmd6, $cmd7, $cmd8, $cmd9, $cmd10]}' > ssm_payload.json
+          # 2. Define Commands (The Self-Healing Way)
+          # Includes Bootstrap (Clone if missing) + Permission Fixes + Deployment
+          jq -n \
+            --arg cmd1 "if [ ! -d /opt/monitoring ]; then echo '🌱 Repo missing. Cloning...'; sudo git clone https://github.com/ashish-soni-org/Monitoring.git /opt/monitoring; fi" \
+            --arg cmd2 "cd /opt/monitoring" \
+            --arg cmd3 "echo '⬇️ Fetching latest code...'" \
+            --arg cmd4 "sudo git fetch origin main" \
+            --arg cmd5 "sudo git reset --hard origin/main" \
+            --arg cmd6 "sudo git clean -fd" \
+            --arg cmd7 "echo '🔧 Fixing Grafana permissions...'" \
+            --arg cmd8 "sudo chown -R 472:472 grafana" \
+            --arg cmd9 "echo '🐳 Updating Stack...'" \
+            --arg cmd10 "sudo docker compose pull" \
+            --arg cmd11 "sudo docker compose up -d --remove-orphans --force-recreate" \
+            --arg cmd12 "sudo docker image prune -f" \
+            '{"commands": [$cmd1, $cmd2, $cmd3, $cmd4, $cmd5, $cmd6, $cmd7, $cmd8, $cmd9, $cmd10, $cmd11, $cmd12]}' > ssm_payload.json
 
           # 3. Execute SSM Command
-          # We pass the JSON file directly using file:// which bypasses shell interpretation
           echo "⚡ Sending Command to SSM..."
           SH_COMMAND_ID=$(aws ssm send-command \
             --document-name "AWS-RunShellScript" \
@@ -64,8 +64,7 @@ jobs:
 
           echo "⏳ Execution Started. Command ID: $SH_COMMAND_ID"
 
-          # 4. Polling Loop (The Professional Way)
-          # We wait for the command to finish so we can verify success/failure.
+          # 4. Polling Loop
           while true; do
             STATUS=$(aws ssm list-command-invocations \
               --command-id "$SH_COMMAND_ID" \
@@ -80,7 +79,6 @@ jobs:
               exit 0
             elif [[ "$STATUS" == "Failed" || "$STATUS" == "Cancelled" || "$STATUS" == "TimedOut" ]]; then
               echo "❌ Deployment Failed. Fetching logs..."
-              # Retrieve standard error for debugging
               aws ssm get-command-invocation \
                 --command-id "$SH_COMMAND_ID" \
                 --instance-id "$INSTANCE_ID" \
