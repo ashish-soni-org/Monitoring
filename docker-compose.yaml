@@ -33,7 +33,10 @@ services:
       - monitoring_network
 
   cadvisor:
-    # THE FIX: Canary build has the updated Docker Client for API 1.44+
+    # -----------------------------------------------------------
+    # CRITICAL FIX: "canary" is the ONLY version that supports
+    # Docker API 1.44 on Ubuntu 24.04. Do not change this back.
+    # -----------------------------------------------------------
     image: gcr.io/cadvisor/cadvisor:canary
     container_name: monitoring_cadvisor
     restart: unless-stopped
@@ -44,6 +47,7 @@ services:
       - '-docker_only=true'
       - '-housekeeping_interval=10s'
     environment:
+      # This variable ONLY works when combined with the "canary" image
       - DOCKER_API_VERSION=1.44
     volumes:
       - /:/rootfs:ro
