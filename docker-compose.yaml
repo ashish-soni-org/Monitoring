@@ -41,7 +41,6 @@ services:
     privileged: true
     devices:
       - /dev/kmsg
-    # FIX: "docker_only" prevents cAdvisor from crashing on Ubuntu 24.04
     command:
       - '-docker_only=true'
       - '-housekeeping_interval=10s'
@@ -51,7 +50,6 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
-      # FIX: Mount cgroups for metrics to work
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
     ports:
       - "8080:8080"
@@ -64,15 +62,14 @@ services:
     restart: unless-stopped
     volumes:
       - grafana_data:/var/lib/grafana
-      # Mount provisioning config and dashboards
       - ./grafana/provisioning:/etc/grafana/provisioning
       - ./grafana/dashboards:/var/lib/grafana/dashboards
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
-      # CRITICAL: Settings to serve Grafana under /grafana subpath
       - GF_SERVER_DOMAIN=localhost
+      # CRITICAL: Root URL must match the new configuration
       - GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s:%(http_port)s/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     ports:
@@ -87,7 +84,8 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "80:80"
+      # CHANGED: Listen on external 8080 to avoid conflict with your FastAPI apps
+      - "8080:80"
     networks:
       - monitoring_network
 
