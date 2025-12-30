@@ -47,6 +47,12 @@
           "format": "table", 
           "instant": true, 
           "legendFormat": "RAM" 
+        },
+        { 
+          "expr": "label_replace(time() - sum by (id) (container_start_time_seconds{id=~\"/system.slice/docker-.*\"}), \"short_id\", \"$1\", \"id\", \".*docker-(.{12}).*\")", 
+          "format": "table", 
+          "instant": true, 
+          "legendFormat": "Uptime" 
         }
       ],
       "transformations": [
@@ -56,11 +62,24 @@
            "options": { 
              "excludeByName": { "id": true }, 
              "indexByName": {}, 
-             "renameByName": { "short_id": "Container ID", "Value #A": "CPU %", "Value #B": "RAM Usage" } 
+             "renameByName": { "short_id": "Container ID", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime / Health" } 
            } 
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [ { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" } ] }, { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "bytes" } ] } ] }
+      "fieldConfig": { 
+        "defaults": { "unit": "short" }, 
+        "overrides": [ 
+          { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" } ] }, 
+          { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "bytes" } ] },
+          { 
+            "matcher": { "id": "byName", "options": "Uptime / Health" }, 
+            "properties": [ 
+              { "id": "unit", "value": "s" }, 
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 60 }, { "color": "green", "value": 300 } ] } } 
+            ] 
+          } 
+        ] 
+      }
     }
   ],
   "refresh": "5s",
