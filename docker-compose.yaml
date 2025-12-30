@@ -33,10 +33,7 @@ services:
       - monitoring_network
 
   cadvisor:
-    # -----------------------------------------------------------
-    # THE FIX: Zcube provides the updated build we need.
-    # Confirmed available and compatible with Ubuntu 24.04
-    # -----------------------------------------------------------
+    # Zcube image with Permissions unlocked
     image: zcube/cadvisor:latest
     container_name: monitoring_cadvisor
     restart: unless-stopped
@@ -47,16 +44,17 @@ services:
       - '-docker_only=true'
       - '-housekeeping_interval=10s'
     environment:
-      # Forces the container to speak API 1.44 to the Host Daemon
       - DOCKER_API_VERSION=1.44
     volumes:
       - /:/rootfs:ro
-      - /var/run:/var/run:ro
+      - /var/run:/var/run:rw
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # FIX: Mount cgroup as Read-Write
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      # FIX: Mount socket as Read-Write (Critical for Ubuntu 24.04)
+      - /var/run/docker.sock:/var/run/docker.sock:rw
     networks:
       - monitoring_network
 
