@@ -33,12 +33,20 @@ services:
       - monitoring_network
 
   cadvisor:
+    # We stick with v0.49.1 but force compatibility
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: monitoring_cadvisor
     restart: unless-stopped
     privileged: true
     devices:
       - /dev/kmsg
+    command:
+      # We enable docker_only because now the connection will actually work!
+      - '-docker_only=true'
+      - '-housekeeping_interval=10s'
+    environment:
+      # THE MAGIC FIX: Forces outdated cAdvisor client to speak correctly to modern Docker
+      - DOCKER_API_VERSION=1.41
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -46,7 +54,6 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
-      # THE FIX: Explicitly mount the Docker socket
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - monitoring_network
