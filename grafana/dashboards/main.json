@@ -20,14 +20,8 @@
       "title": "EC2 RAM Usage (MB/GB)",
       "type": "timeseries",
       "targets": [
-        { 
-          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", 
-          "legendFormat": "RAM Used" 
-        },
-        { 
-          "expr": "node_memory_MemTotal_bytes", 
-          "legendFormat": "Total RAM" 
-        }
+        { "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", "legendFormat": "RAM Used" },
+        { "expr": "node_memory_MemTotal_bytes", "legendFormat": "Total RAM" }
       ],
       "fieldConfig": { 
         "defaults": { 
@@ -49,85 +43,29 @@
     {
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
       "id": 4,
-      "title": "Application Metrics (Real-Time 1s)",
+      "title": "Application Metrics (Live 1s Update)",
       "type": "table",
       "targets": [
-        { 
-          "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", 
-          "format": "table", 
-          "instant": true, 
-          "legendFormat": "CPU" 
-        },
-        { 
-          "expr": "sum by (name) (container_memory_usage_bytes{id!=\"/\"} * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
-          "format": "table", 
-          "instant": true, 
-          "legendFormat": "RAM" 
-        },
-        { 
-          "expr": "sum by (name) ((time() - container_start_time_seconds{id!=\"/\"}) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
-          "format": "table", 
-          "instant": true, 
-          "legendFormat": "Uptime" 
-        },
-        { 
-          "expr": "sum by (name) (irate(container_network_receive_bytes_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
-          "format": "table", 
-          "instant": true, 
-          "legendFormat": "Net In" 
-        },
-        { 
-          "expr": "sum by (name) (irate(container_network_transmit_bytes_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
-          "format": "table", 
-          "instant": true, 
-          "legendFormat": "Net Out" 
-        },
-        { 
-          "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})", 
-          "format": "table", 
-          "instant": true, 
-          "legendFormat": "Status" 
-        }
+        { "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", "format": "table", "instant": true, "legendFormat": "CPU" },
+        { "expr": "sum by (name) (container_memory_usage_bytes{id!=\"/\"} * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "legendFormat": "RAM" },
+        { "expr": "sum by (name) ((time() - container_start_time_seconds{id!=\"/\"}) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "legendFormat": "Uptime" },
+        { "expr": "sum by (name) (irate(container_network_receive_bytes_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "legendFormat": "Net In" },
+        { "expr": "sum by (name) (irate(container_network_transmit_bytes_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "legendFormat": "Net Out" },
+        { "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})", "format": "table", "instant": true, "legendFormat": "Status" }
       ],
       "transformations": [
         { "id": "merge", "options": {} },
-        { 
-           "id": "organize", 
-           "options": { 
-             "excludeByName": {}, 
-             "indexByName": {}, 
-             "renameByName": { 
-               "name": "Application Name", 
-               "Value #A": "CPU %", 
-               "Value #B": "RAM Usage", 
-               "Value #C": "Uptime", 
-               "Value #D": "Net In (Live Activity)",
-               "Value #E": "Net Out (Live Response)",
-               "Value #F": "Health Status" 
-             } 
-           } 
-        }
+        { "id": "organize", "options": { "excludeByName": {}, "indexByName": {}, "renameByName": { "name": "Application Name", "Value #A": "CPU %", "Value #B": "RAM Usage", "Value #C": "Uptime", "Value #D": "Net In (Activity)", "Value #E": "Net Out (Response)", "Value #F": "Health Status" } } }
       ],
       "fieldConfig": { 
         "defaults": { "unit": "short" }, 
         "overrides": [ 
           { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" }, { "id": "decimals", "value": 1 } ] }, 
           { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "decbytes" }, { "id": "decimals", "value": 0 } ] },
-          { "matcher": { "id": "byName", "options": "Net In (Live Activity)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
-          { "matcher": { "id": "byName", "options": "Net Out (Live Response)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
-          { 
-            "matcher": { "id": "byName", "options": "Uptime" }, 
-            "properties": [ 
-              { "id": "unit", "value": "dthms" }, 
-              { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "orange", "value": 60 }, { "color": "green", "value": 300 } ] } } 
-            ] 
-          },
-          { 
-            "matcher": { "id": "byName", "options": "Health Status" }, 
-            "properties": [ 
-              { "id": "mappings", "value": [ { "type": "value", "options": { "1": { "color": "green", "index": 0, "text": "RUNNING" } } } ] } 
-            ] 
-          } 
+          { "matcher": { "id": "byName", "options": "Net In (Activity)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
+          { "matcher": { "id": "byName", "options": "Net Out (Response)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
+          { "matcher": { "id": "byName", "options": "Uptime" }, "properties": [ { "id": "unit", "value": "dthms" } ] },
+          { "matcher": { "id": "byName", "options": "Health Status" }, "properties": [ { "id": "mappings", "value": [ { "type": "value", "options": { "1": { "color": "green", "text": "RUNNING" } } } ] } ] }
         ] 
       }
     }
@@ -137,7 +75,7 @@
   "style": "dark",
   "tags": ["automated"],
   "templating": { "list": [] },
-  "time": { "from": "now-5m", "to": "now" },
+  "time": { "from": "now-2m", "to": "now" },
   "title": "Master Node Overview",
   "uid": "master-node-01",
   "version": 1
