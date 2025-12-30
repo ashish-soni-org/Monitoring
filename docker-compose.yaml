@@ -33,17 +33,17 @@ services:
       - monitoring_network
 
   cadvisor:
-    # -----------------------------------------------------------
-    # FINAL CONFIG: Matches your successful manual test 100%
-    # -----------------------------------------------------------
+    # Zcube image (Confirmed working manually)
     image: zcube/cadvisor:latest
     container_name: monitoring_cadvisor
     restart: unless-stopped
     privileged: true
     devices:
       - /dev/kmsg
-    # Simplified command (Removed housekeeping to stop crashes)
-    command: ["-docker_only=true"]
+    # FIX: Use standard list format for arguments
+    command:
+      - '-docker_only=true'
+      - '-housekeeping_interval=10s'
     environment:
       - DOCKER_API_VERSION=1.44
     volumes:
