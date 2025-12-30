@@ -17,10 +17,53 @@
     {
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
       "id": 2,
-      "title": "EC2 RAM Usage",
+      "title": "EC2 RAM Usage (MB/GB)",
       "type": "timeseries",
-      "targets": [ { "expr": "(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100", "legendFormat": "RAM Used" } ],
-      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 85 } ] } } }
+      "targets": [
+        { 
+          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes", 
+          "legendFormat": "RAM Used" 
+        },
+        { 
+          "expr": "node_memory_MemTotal_bytes", 
+          "legendFormat": "Total RAM" 
+        }
+      ],
+      "fieldConfig": { 
+        "defaults": { 
+          "unit": "bytes", 
+          "min": 0,
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] } 
+        } 
+      }
     },
     {
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
