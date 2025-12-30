@@ -36,7 +36,7 @@ services:
     restart: unless-stopped
     privileged: true
     command:
-      - '-housekeeping_interval=10s'
+      - '-housekeeping_interval=1s'
       - '-disable_metrics=disk,percpu,sched,process'
     volumes:
       - /:/rootfs:ro
@@ -61,12 +61,13 @@ services:
       - GF_SERVER_DOMAIN=13.205.64.221
       - GF_SERVER_ROOT_URL=http://13.205.64.221:8081/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
-      # NEW: Enable Public Embedding
+      # Security Fixes for Website Embedding
       - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=none
+      - GF_SECURITY_COOKIE_SECURE=false
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-      - GF_SECURITY_COOKIE_SAMESITE=none
     networks:
       - monitoring_network
 
