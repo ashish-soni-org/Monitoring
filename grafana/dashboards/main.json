@@ -11,7 +11,7 @@
       "id": 1,
       "title": "EC2 CPU Usage",
       "type": "timeseries",
-      "targets": [ { "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode='idle'}[1m])) * 100)", "legendFormat": "CPU Load" } ],
+      "targets": [ { "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode='idle'}[5s])) * 100)", "legendFormat": "CPU Load" } ],
       "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 80 } ] } } }
     },
     {
@@ -49,11 +49,11 @@
     {
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 8 },
       "id": 4,
-      "title": "Application Metrics (Live - Instant)",
+      "title": "Application Metrics (Real-Time 1s)",
       "type": "table",
       "targets": [
         { 
-          "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", 
+          "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100", 
           "format": "table", 
           "instant": true, 
           "legendFormat": "CPU" 
@@ -71,16 +71,16 @@
           "legendFormat": "Uptime" 
         },
         { 
-          "expr": "sum by (name) (irate(container_network_receive_bytes_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
+          "expr": "sum by (name) (irate(container_network_receive_bytes_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
           "format": "table", 
           "instant": true, 
-          "legendFormat": "Net In (Live)" 
+          "legendFormat": "Net In" 
         },
         { 
-          "expr": "sum by (name) (irate(container_network_transmit_bytes_total{id!=\"/\"}[1m]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
+          "expr": "sum by (name) (irate(container_network_transmit_bytes_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})", 
           "format": "table", 
           "instant": true, 
-          "legendFormat": "Net Out (Live)" 
+          "legendFormat": "Net Out" 
         },
         { 
           "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})", 
@@ -111,8 +111,8 @@
       "fieldConfig": { 
         "defaults": { "unit": "short" }, 
         "overrides": [ 
-          { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" } ] }, 
-          { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "decbytes" } ] },
+          { "matcher": { "id": "byName", "options": "CPU %" }, "properties": [ { "id": "unit", "value": "percent" }, { "id": "decimals", "value": 1 } ] }, 
+          { "matcher": { "id": "byName", "options": "RAM Usage" }, "properties": [ { "id": "unit", "value": "decbytes" }, { "id": "decimals", "value": 0 } ] },
           { "matcher": { "id": "byName", "options": "Net In (Live Activity)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
           { "matcher": { "id": "byName", "options": "Net Out (Live Response)" }, "properties": [ { "id": "unit", "value": "binBps" }, { "id": "decimals", "value": 1 } ] },
           { 
@@ -132,12 +132,12 @@
       }
     }
   ],
-  "refresh": "5s",
+  "refresh": "1s",
   "schemaVersion": 38,
   "style": "dark",
   "tags": ["automated"],
   "templating": { "list": [] },
-  "time": { "from": "now-1h", "to": "now" },
+  "time": { "from": "now-5m", "to": "now" },
   "title": "Master Node Overview",
   "uid": "master-node-01",
   "version": 1

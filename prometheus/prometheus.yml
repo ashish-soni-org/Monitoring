@@ -1,19 +1,17 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  # THE OVERCLOCK: Scrape every second for High-Res Live Data
+  scrape_interval: 1s
+  evaluation_interval: 1s
 
 scrape_configs:
-  # Monitor Prometheus itself
   - job_name: 'prometheus'
     static_configs:
-      - targets: ['prometheus:9090']
+      - targets: ['localhost:9090']
 
-  # Monitor the EC2 Host (CPU, RAM, Disk)
-  - job_name: 'node-exporter'
+  - job_name: 'node_exporter'
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ['monitoring_node_exporter:9100']
 
-  # Monitor all Docker Containers running on this EC2
   - job_name: 'cadvisor'
     static_configs:
-      - targets: ['cadvisor:8080']
+      - targets: ['monitoring_cadvisor:8080']
