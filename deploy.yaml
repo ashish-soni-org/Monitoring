@@ -39,7 +39,7 @@ jobs:
           # 2. Define Commands (The Self-Healing Way)
           # Includes Bootstrap (Clone if missing) + Permission Fixes + Deployment
           jq -n \
-            --arg cmd1 "if [ ! -d /opt/monitoring ]; then echo '🌱 Repo missing. Cloning...'; sudo git clone https://github.com/ashish-soni-org/Monitoring.git /opt/monitoring; fi" \
+            --arg cmd1 "if [ ! -d /home/ubuntu/monitoring ]; then echo '🌱 Repo missing. Cloning...'; sudo git clone https://github.com/ashish-soni-org/Monitoring.git /opt/monitoring; fi" \
             --arg cmd2 "cd /opt/monitoring" \
             --arg cmd3 "echo '⬇️ Fetching latest code...'" \
             --arg cmd4 "sudo git fetch origin main" \
