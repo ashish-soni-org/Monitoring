@@ -181,7 +181,7 @@ jobs:
               "event_type": "event-on-demand-deployment",
               "client_payload": {
                 "repo": "${{ github.event.repository.name }}",
-                "endpoint": "/"
+                "endpoint": "/${{ github.event.repository.name }}"
               }
             }
             EOF
