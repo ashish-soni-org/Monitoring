@@ -58,15 +58,17 @@ jobs:
             --arg cmd5 "sudo git reset --hard origin/main" \
             --arg cmd6 "sudo git clean -fd" \
             --arg cmd7 "echo '🔧 Injecting Secrets...'" \
-            --arg cmd8 "mkdir -p prometheus/secrets" \
-            --arg cmd9 "echo \"$key\" > prometheus/secrets/api_key" \
-            --arg cmd10 "sed -i \"s|__GRAFANA_URL__|$url|g\" prometheus/prometheus.yml" \
-            --arg cmd11 "sed -i \"s|__GRAFANA_USER__|$user|g\" prometheus/prometheus.yml" \
+            --arg cmd8 "sudo mkdir -p prometheus/secrets" \
+            --arg cmd9 "sudo sh -c \"echo '$key' > prometheus/secrets/api_key\"" \
+            --arg cmd10 "sudo sed -i \"s|__GRAFANA_URL__|$url|g\" prometheus/prometheus.yml" \
+            --arg cmd11 "sudo sed -i \"s|__GRAFANA_USER__|$user|g\" prometheus/prometheus.yml" \
+            --arg cmd12 "echo '--- VERIFYING CONFIG ---'" \
+            --arg cmd13 "cat prometheus/prometheus.yml" \
             --arg cmd14 "echo '🐳 Updating Stack...'" \
             --arg cmd15 "sudo docker compose pull" \
             --arg cmd16 "sudo docker compose up -d --remove-orphans --force-recreate" \
             --arg cmd17 "sudo docker image prune -f" \
-            '{"commands": [$cmd1, $cmd2, $cmd3, $cmd4, $cmd5, $cmd6, $cmd7, $cmd8, $cmd9, $cmd10, $cmd11, $cmd14, $cmd15, $cmd16, $cmd17]}' > ssm_payload.json
+            '{"commands": [$cmd1, $cmd2, $cmd3, $cmd4, $cmd5, $cmd6, $cmd7, $cmd8, $cmd9, $cmd10, $cmd11, $cmd12, $cmd13, $cmd14, $cmd15, $cmd16, $cmd17]}' > ssm_payload.json
 
           # 3. Execute SSM Command
           echo "⚡ Sending Command to SSM..."
