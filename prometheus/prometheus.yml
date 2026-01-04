@@ -17,7 +17,7 @@ scrape_configs:
       - targets: ['monitoring_cadvisor:8080']
 
 remote_write:
-  - url: "${GRAFANA_REMOTE_WRITE_URL}"
+  - url: "__GRAFANA_URL__"
     basic_auth:
-      username: "${GRAFANA_REMOTE_WRITE_USER}"
+      username: "__GRAFANA_USER__"
       password_file: /etc/prometheus/secrets/api_key

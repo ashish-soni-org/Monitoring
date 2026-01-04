@@ -60,8 +60,8 @@ jobs:
             --arg cmd7 "echo '🔧 Injecting Secrets...'" \
             --arg cmd8 "mkdir -p prometheus/secrets" \
             --arg cmd9 "echo \"$key\" > prometheus/secrets/api_key" \
-            --arg cmd10 "sed -i \"s|\\\${GRAFANA_REMOTE_WRITE_URL}|$url|g\" prometheus/prometheus.yml" \
-            --arg cmd11 "sed -i \"s|\\\${GRAFANA_REMOTE_WRITE_USER}|$user|g\" prometheus/prometheus.yml" \
+            --arg cmd10 "sed -i \"s|__GRAFANA_URL__|$url|g\" prometheus/prometheus.yml" \
+            --arg cmd11 "sed -i \"s|__GRAFANA_USER__|$user|g\" prometheus/prometheus.yml" \
             --arg cmd14 "echo '🐳 Updating Stack...'" \
             --arg cmd15 "sudo docker compose pull" \
             --arg cmd16 "sudo docker compose up -d --remove-orphans --force-recreate" \
