@@ -1,0 +1,50 @@
+name: Debug Telemetry
+on: workflow_dispatch
+
+jobs:
+  debug-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION_NAME }}
+
+      - name: Run Diagnostics
+        run: |
+          echo "🔍 Finding Instance..."
+          INSTANCE_ID=$(aws ec2 describe-instances --filters "Name=tag:Monitoring,Values=true" "Name=instance-state-name,Values=running" --query "Reservations[].Instances[].InstanceId" --output text)
+          
+          if [ -z "$INSTANCE_ID" ]; then
+            echo "❌ No instance found!"
+            exit 1
+          fi
+          echo "✅ Target: $INSTANCE_ID"
+
+          echo "⚡ Sending Debug Commands..."
+          # Commands: Check Docker status, Check if Config has the URL injected, Check Prometheus Logs
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=["echo \"--- DOCKER STATUS ---\"", "sudo docker ps -a", "echo \"--- CONFIG CHECK (URL) ---\"", "grep \"url:\" /opt/monitoring/prometheus/prometheus.yml", "echo \"--- PROMETHEUS LOGS ---\"", "sudo docker logs monitoring_prometheus --tail 50"]' \
+            --query "Command.CommandId" \
+            --output text)
+
+          echo "⏳ Waiting for results (Command ID: $CMD_ID)..."
+          sleep 10
+          
+          # Retrieve Output
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "StandardOutputContent" \
+            --output text
+
+          echo "--- STDERR ---"
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" \
+            --instance-id "$INSTANCE_ID" \
+            --query "StandardErrorContent" \
+            --output text
