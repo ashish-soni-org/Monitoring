@@ -20,6 +20,10 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION_NAME }}
 
       - name: Deploy to EC2
+        env:
+          GRAFANA_URL: ${{ secrets.GRAFANA_REMOTE_WRITE_URL }}
+          GRAFANA_USER: ${{ secrets.GRAFANA_REMOTE_WRITE_USER }}
+          GRAFANA_KEY: ${{ secrets.GRAFANA_REMOTE_WRITE_KEY }}
         run: |
           echo "🔍 Finding Instance with tag 'Monitoring=true'..."
           
@@ -39,19 +43,27 @@ jobs:
           # 2. Define Commands (The Self-Healing Way)
           # Includes Bootstrap (Clone if missing) + Permission Fixes + Deployment
           jq -n \
+            --arg url "$GRAFANA_URL" \
+            --arg user "$GRAFANA_USER" \
+            --arg key "$GRAFANA_KEY" \
             --arg cmd1 "if [ ! -d /home/ubuntu/monitoring ]; then echo '🌱 Repo missing. Cloning...'; sudo git clone https://github.com/ashish-soni-org/Monitoring.git /opt/monitoring; fi" \
             --arg cmd2 "cd /opt/monitoring" \
             --arg cmd3 "echo '⬇️ Fetching latest code...'" \
             --arg cmd4 "sudo git fetch origin main" \
             --arg cmd5 "sudo git reset --hard origin/main" \
             --arg cmd6 "sudo git clean -fd" \
-            --arg cmd7 "echo '🔧 Fixing Grafana permissions...'" \
-            --arg cmd8 "sudo chown -R 472:472 grafana" \
-            --arg cmd9 "echo '🐳 Updating Stack...'" \
-            --arg cmd10 "sudo docker compose pull" \
-            --arg cmd11 "sudo docker compose up -d --remove-orphans --force-recreate" \
-            --arg cmd12 "sudo docker image prune -f" \
-            '{"commands": [$cmd1, $cmd2, $cmd3, $cmd4, $cmd5, $cmd6, $cmd7, $cmd8, $cmd9, $cmd10, $cmd11, $cmd12]}' > ssm_payload.json
+            --arg cmd7 "echo '🔧 Injecting Secrets...'" \
+            --arg cmd8 "mkdir -p prometheus/secrets" \
+            --arg cmd9 "echo \"$key\" > prometheus/secrets/api_key" \
+            --arg cmd10 "sed -i \"s|\\\${GRAFANA_REMOTE_WRITE_URL}|$url|g\" prometheus/prometheus.yml" \
+            --arg cmd11 "sed -i \"s|\\\${GRAFANA_REMOTE_WRITE_USER}|$user|g\" prometheus/prometheus.yml" \
+            --arg cmd12 "echo '🔧 Fixing Grafana permissions...'" \
+            --arg cmd13 "sudo chown -R 472:472 grafana" \
+            --arg cmd14 "echo '🐳 Updating Stack...'" \
+            --arg cmd15 "sudo docker compose pull" \
+            --arg cmd16 "sudo docker compose up -d --remove-orphans --force-recreate" \
+            --arg cmd17 "sudo docker image prune -f" \
+            '{"commands": [$cmd1, $cmd2, $cmd3, $cmd4, $cmd5, $cmd6, $cmd7, $cmd8, $cmd9, $cmd10, $cmd11, $cmd12, $cmd13, $cmd14, $cmd15, $cmd16, $cmd17]}' > ssm_payload.json
 
           # 3. Execute SSM Command
           echo "⚡ Sending Command to SSM..."
