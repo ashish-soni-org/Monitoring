@@ -21,15 +21,10 @@ jobs:
 
       - name: Deploy to EC2
         env:
-          GRAFANA_URL: "https://prometheus-prod-43-prod-ap-south-1.grafana.net/api/prom/push"
+          GRAFANA_URL: ${{ secrets.GRAFANA_REMOTE_WRITE_URL }}
           GRAFANA_USER: ${{ secrets.GRAFANA_REMOTE_WRITE_USER }}
           GRAFANA_KEY: ${{ secrets.GRAFANA_REMOTE_WRITE_KEY }}
         run: |
-          echo "🔍 Debugging Secrets..."
-          echo "URL: $GRAFANA_URL"
-          echo "User Length: ${#GRAFANA_USER}"
-          echo "Key Length: ${#GRAFANA_KEY}"
-          
           echo "🔍 Finding Instance with tag 'Monitoring=true'..."
           
           # 1. Dynamic Discovery
