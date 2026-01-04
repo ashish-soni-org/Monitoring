@@ -110,7 +110,7 @@
             "type": "prometheus",
             "uid": "grafanacloud-prom"
           },
-          "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode='idle'}[5s])) * 100)",
+          "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode='idle'}[1m])) * 100)",
           "interval": "5s",
           "legendFormat": "CPU Load",
           "refId": "A"
@@ -393,28 +393,28 @@
       "pluginVersion": "12.4.0-20160616057",
       "targets": [
         {
-          "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{id!=\"/\"}[5s]) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"}) * 100",
+          "expr": "sum by (name) (irate(container_cpu_usage_seconds_total{name!=\"\", name!~\"monitoring_.*\"}[1m])) * 100",
           "format": "table",
           "instant": true,
           "interval": "5s",
           "refId": "A"
         },
         {
-          "expr": "sum by (name) (container_memory_usage_bytes{id!=\"/\"} * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})",
+          "expr": "sum by (name) (container_memory_usage_bytes{name!=\"\", name!~\"monitoring_.*\"})",
           "format": "table",
           "instant": true,
           "interval": "5s",
           "refId": "B"
         },
         {
-          "expr": "sum by (name) ((time() - container_start_time_seconds{id!=\"/\"}) * on(id) group_left(name) container_meta_info{name!~\"monitoring_.*\"})",
+          "expr": "sum by (name) (time() - container_start_time_seconds{name!=\"\", name!~\"monitoring_.*\"})",
           "format": "table",
           "instant": true,
           "interval": "5s",
           "refId": "C"
         },
         {
-          "expr": "sum by (name) (container_meta_info{name!~\"monitoring_.*\"})",
+          "expr": "sum by (name) (container_last_seen{name!=\"\", name!~\"monitoring_.*\"})",
           "format": "table",
           "instant": true,
           "interval": "5s",
