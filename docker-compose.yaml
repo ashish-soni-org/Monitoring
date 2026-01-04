@@ -48,46 +48,11 @@ services:
     networks:
       - monitoring_network
 
-  grafana:
-    image: grafana/grafana:10.3.3
-    container_name: monitoring_grafana
-    restart: unless-stopped
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_SERVER_DOMAIN=13.205.64.221
-      - GF_SERVER_ROOT_URL=http://13.205.64.221:8081/grafana/
-      - GF_SERVER_SERVE_FROM_SUB_PATH=true
-      # EMBEDDING FIXES
-      - GF_SECURITY_ALLOW_EMBEDDING=true
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
-      # Cookie Fixes for non-HTTPS
-      - GF_SECURITY_COOKIE_SAMESITE=lax
-      - GF_SECURITY_COOKIE_SECURE=false
-    networks:
-      - monitoring_network
-
-  nginx:
-    image: nginx:latest
-    container_name: monitoring_nginx
-    restart: unless-stopped
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    ports:
-      - "8081:80"
-    networks:
-      - monitoring_network
-
 volumes:
   prometheus_data:
-  grafana_data:
+
   metrics_data:
+
 
 networks:
   monitoring_network:
